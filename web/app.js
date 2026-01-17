@@ -117,7 +117,7 @@ function openDialogFor(service) {
   const locked = STATE.muxRunning;
 
   $('#dlgTitle').textContent = editingId ? `Edit: ${service?.identity?.ps8}` : 'Add service';
-  $('#dlgLockHint').textContent = locked ? 'ON AIR: identité/bitrate/protection/port verrouillés (comme DabCast)' : '';
+  $('#dlgLockHint').textContent = locked ? 'ON AIR: identité/bitrate/protection verrouillés (comme DabCast)' : '';
 
   // --- General tab ---
   $('#f_pi').value = service?.identity?.pi || '';
@@ -129,7 +129,6 @@ function openDialogFor(service) {
 
   fillBitrates($('#f_bitrate'), STATE.allowedBitratesKbps || [], service?.dab?.bitrateKbps ?? 96);
   $('#f_prot').value = String(service?.dab?.protectionLevel ?? 3);
-  $('#f_port').value = service?.network?.ediOutputTcp?.port ?? '';
 
   $('#f_sr').value = String(service?.audio?.sampleRateHz ?? 48000);
   $('#f_ch').value = String(service?.audio?.channels ?? 2);
@@ -185,7 +184,7 @@ function openDialogFor(service) {
 
   // lock fields
   // lock fields (identity + dab params like DabCast)
-  ['f_pi','f_ps8','f_ps16','f_lang','f_pty','f_bitrate','f_prot','f_port','f_sr','f_ch','f_zbuf','f_zpre'].forEach((id) => {
+  ['f_pi','f_ps8','f_ps16','f_lang','f_pty','f_bitrate','f_prot','f_sr','f_ch','f_zbuf','f_zpre'].forEach((id) => {
     const el = document.getElementById(id);
     if (el) el.disabled = locked;
   });
@@ -389,11 +388,6 @@ $('#svcForm').addEventListener('submit', async (e) => {
       gainDb: Number($('#f_gain').value || 0),
       sampleRateHz: Number($('#f_sr').value || 48000),
       channels: Number($('#f_ch').value || 2)
-    },
-    network: {
-      ediOutputTcp: {
-        port: Number($('#f_port').value || 0)
-      }
     },
     watchdog: {
       enabled: $('#f_wd').value === '1',
