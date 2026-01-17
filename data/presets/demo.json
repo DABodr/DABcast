@@ -1,0 +1,156 @@
+{
+  "id": "demo",
+  "name": "DemoMux",
+  "createdAt": "2026-01-16T00:00:00.000Z",
+  "services": [
+    {
+      "id": "maxxima",
+      "enabled": true,
+      "identity": {
+        "pi": "4DB0",
+        "serviceIdHex": "0x4DB0",
+        "ps8": "MAXXIMA",
+        "ps16": "MAXXIMA",
+        "languageHex": "0x0F",
+        "pty": 10
+      },
+      "dab": {
+        "bitrateKbps": 88,
+        "protectionLevel": 3
+      },
+      "input": {
+        "mode": "AUDIOENC",
+        "uri": "http://maxxima.mine.nu:8000/",
+        "backupUri": null,
+        "zmqBuffer": 96,
+        "zmqPrebuffering": 48,
+        "encoderBufferMs": 200
+      },
+      "audio": {
+        "channels": 2,
+        "sampleRateHz": 48000,
+        "gainDb": 0
+      },
+      "pad": {
+        "enabled": true,
+        "fifoName": "MAXXIMA",
+        "dlsFile": "MAXXIMA.dls",
+        "slideDir": "slide",
+        "motDir": "./data/mot/MAXXIMA",
+        "sls": {
+          "enabled": true,
+          "logoPath": "./data/mot/MAXXIMA/slide/logo.jpg"
+        }
+      },
+      "network": {
+        "ediOutputTcp": { "host": "127.0.0.1", "port": 9001 }
+      },
+      "watchdog": {
+        "enabled": true,
+        "silenceThresholdSec": 10,
+        "switchToBackupOnSilence": true,
+        "returnToMainAfterSec": 60
+      },
+      "ui": { "order": 1 }
+    },
+    {
+      "id": "fip",
+      "enabled": true,
+      "identity": {
+        "pi": "F204",
+        "serviceIdHex": "0xF204",
+        "ps8": "FIP",
+        "ps16": "F I P",
+        "languageHex": "0x0F",
+        "pty": 12
+      },
+      "dab": { "bitrateKbps": 88, "protectionLevel": 3 },
+      "input": {
+        "mode": "AUDIOENC",
+        "uri": "http://direct.fipradio.fr/live/fip-midfi.mp3",
+        "backupUri": null,
+        "zmqBuffer": 96,
+        "zmqPrebuffering": 48,
+        "encoderBufferMs": 200
+      },
+      "audio": { "channels": 2, "sampleRateHz": 48000, "gainDb": 0 },
+      "pad": {
+        "enabled": true,
+        "fifoName": "FIP",
+        "dlsFile": "FIP.dls",
+        "slideDir": "slide",
+        "motDir": "./data/mot/FIP",
+        "sls": { "enabled": true, "logoPath": "./data/mot/FIP/slide/logo.jpg" }
+      },
+      "network": { "ediOutputTcp": { "host": "127.0.0.1", "port": 9002 } },
+      "watchdog": { "enabled": true, "silenceThresholdSec": 10, "switchToBackupOnSilence": true, "returnToMainAfterSec": 60 },
+      "ui": { "order": 2 }
+    },
+    {
+      "id": "classic21",
+      "enabled": true,
+      "identity": {
+        "pi": "6354",
+        "serviceIdHex": "0x6354",
+        "ps8": "CLASS21",
+        "ps16": "CLASSIC21",
+        "languageHex": "0x0F",
+        "pty": 11
+      },
+      "dab": { "bitrateKbps": 88, "protectionLevel": 3 },
+      "input": {
+        "mode": "AUDIOENC",
+        "uri": "http://radios.rtbf.be/classic21-128.mp3",
+        "backupUri": null,
+        "zmqBuffer": 96,
+        "zmqPrebuffering": 48,
+        "encoderBufferMs": 200
+      },
+      "audio": { "channels": 2, "sampleRateHz": 48000, "gainDb": 0 },
+      "pad": {
+        "enabled": true,
+        "fifoName": "CLASSIC21",
+        "dlsFile": "CLASSIC21.dls",
+        "slideDir": "slide",
+        "motDir": "./data/mot/CLASSIC21",
+        "sls": { "enabled": true, "logoPath": "./data/mot/CLASSIC21/slide/logo.jpg" }
+      },
+      "network": { "ediOutputTcp": { "host": "127.0.0.1", "port": 9003 } },
+      "watchdog": { "enabled": true, "silenceThresholdSec": 10, "switchToBackupOnSilence": true, "returnToMainAfterSec": 60 },
+      "ui": { "order": 3 }
+    },
+    {
+      "id": "rvm",
+      "enabled": true,
+      "identity": {
+        "pi": "F750",
+        "serviceIdHex": "0xF750",
+        "ps8": "RVM",
+        "ps16": "RVM",
+        "languageHex": "0x0F",
+        "pty": 10
+      },
+      "dab": { "bitrateKbps": 88, "protectionLevel": 3 },
+      "input": {
+        "mode": "AUDIOENC",
+        "uri": "http://stream.rvm.fr:8022/stream.mp3",
+        "backupUri": null,
+        "zmqBuffer": 96,
+        "zmqPrebuffering": 48,
+        "encoderBufferMs": 200
+      },
+      "audio": { "channels": 2, "sampleRateHz": 48000, "gainDb": 0 },
+      "pad": {
+        "enabled": true,
+        "fifoName": "RVM",
+        "dlsFile": "RVM.dls",
+        "slideDir": "slide",
+        "motDir": "./data/mot/RVM",
+        "sls": { "enabled": true, "logoPath": "./data/mot/RVM/slide/logo.jpg" }
+      },
+      "network": { "ediOutputTcp": { "host": "127.0.0.1", "port": 9004 } },
+      "watchdog": { "enabled": true, "silenceThresholdSec": 10, "switchToBackupOnSilence": true, "returnToMainAfterSec": 60 },
+      "ui": { "order": 4 }
+    }
+  ]
+}
