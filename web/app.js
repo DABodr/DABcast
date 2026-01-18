@@ -46,6 +46,7 @@ function badge(status) {
   const s = (status || 'UNKNOWN').toUpperCase();
   let cls = 'pill';
   if (s.includes('RUN')) cls += ' ok';
+  else if (s.includes('WARN')) cls += ' warn';
   else if (s.includes('START')) cls += ' warn';
   else if (s.includes('STOP')) cls += ' off';
   return `<span class="${cls}">${s}</span>`;

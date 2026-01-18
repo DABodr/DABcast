@@ -73,7 +73,8 @@ export class AppState {
         failuresSinceMs: 0,
         lastMetaUpdateMs: 0,
         currentDls: '',
-        currentSlsUrl: ''
+        currentSlsUrl: '',
+        warningSinceMs: 0
       });
     }
   }
@@ -284,7 +285,8 @@ export class AppState {
       failuresSinceMs: 0,
       lastMetaUpdateMs: 0,
       currentDls: '',
-      currentSlsUrl: ''
+      currentSlsUrl: '',
+      warningSinceMs: 0
     });
     this._savePreset();
     return newSvc;
@@ -677,6 +679,8 @@ export class AppState {
 
         if (activeOk) {
           rt.failuresSinceMs = 0;
+          rt.warningSinceMs = 0;
+          if (rt.status && rt.status !== 'RUNNING') rt.status = 'RUNNING';
           // try returning to main if on backup
           if (!activeIsMain && svc.watchdog.returnToMainAfterSec > 0) {
             const backMs = svc.watchdog.returnToMainAfterSec * 1000;
@@ -689,6 +693,12 @@ export class AppState {
 
         // active failed
         if (!rt.failuresSinceMs) rt.failuresSinceMs = nowMs();
+        if (!rt.warningSinceMs) rt.warningSinceMs = nowMs();
+
+        const warnSec = Math.max(1, Math.min(2, Math.floor((svc.watchdog.silenceThresholdSec ?? 10) / 2)));
+        if (nowMs() - rt.warningSinceMs >= warnSec * 1000 && rt.status !== 'WARNING') {
+          rt.status = 'WARNING';
+        }
 
         if (nowMs() - rt.failuresSinceMs >= thresholdMs) {
           if (svc.watchdog.switchToBackupOnSilence && svc.input.backupUri) {
@@ -698,6 +708,7 @@ export class AppState {
             if (targetOk) {
               await this._switchServiceUri(svc, target);
               rt.failuresSinceMs = 0;
+              rt.warningSinceMs = 0;
             }
           }
         }
