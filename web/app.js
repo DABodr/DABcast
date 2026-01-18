@@ -329,6 +329,13 @@ document.querySelectorAll('.logs-tabs .tab').forEach((btn) => {
   });
 });
 
+document.querySelectorAll('[data-action="svc-cancel"]').forEach((btn) => {
+  btn.addEventListener('click', () => dlg.close());
+});
+document.querySelectorAll('[data-action="mux-cancel"]').forEach((btn) => {
+  btn.addEventListener('click', () => dlgMux.close());
+});
+
 // service tabs + wizard buttons
 document.querySelectorAll('#dlgService .tab').forEach((b) => {
   b.addEventListener('click', () => setActiveTab(b.dataset.tab));
