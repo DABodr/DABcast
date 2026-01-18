@@ -133,11 +133,11 @@
           </label>
           <label>
             <span>Codec</span>
-            <input id="f_codec" disabled value="HE-AAC v1 (SBR)" />
-          </label>
-          <label>
-            <span>Port (EDI in)</span>
-            <input id="f_port" type="number" min="1024" max="65535" />
+            <select id="f_codec">
+              <option value="HE-AAC v1 (SBR)">HE-AAC v1 (SBR)</option>
+              <option value="HE-AAC v2 (PS)">HE-AAC v2 (PS)</option>
+              <option value="AAC-LC">AAC-LC</option>
+            </select>
           </label>
 
           <label>
@@ -216,6 +216,7 @@
               <option value="NONE">None</option>
               <option value="JSON">JSON (HTTP)</option>
               <option value="XML">XML (HTTP)</option>
+              <option value="STREAM">Stream (ICY)</option>
               <option value="FILE">Local file</option>
             </select>
           </label>
@@ -248,12 +249,39 @@
           </label>
 
           <label>
+            <span>SLS image URL</span>
+            <input id="f_sls_url" placeholder="https://.../cover.jpg" />
+          </label>
+
+          <label>
             <span>SLS back color</span>
             <input id="f_sls_back" placeholder="#000000" />
           </label>
           <label>
             <span>SLS font color</span>
             <input id="f_sls_font" placeholder="#FFFFFF" />
+          </label>
+
+          <label>
+            <span>Default DLS allowed</span>
+            <select id="f_dls_allowed">
+              <option value="1">Yes</option>
+              <option value="0">No</option>
+            </select>
+          </label>
+          <label>
+            <span>Default SLS allowed</span>
+            <select id="f_sls_allowed">
+              <option value="1">Yes</option>
+              <option value="0">No</option>
+            </select>
+          </label>
+          <label>
+            <span>Include DLS in SLS</span>
+            <select id="f_dls_included">
+              <option value="1">Yes</option>
+              <option value="0">No</option>
+            </select>
           </label>
 
           <div class="span2 slsbox">
@@ -285,75 +313,9 @@
           <button type="button" class="btn" id="btnNext">Next ▶</button>
         </div>
         <div class="right">
-          <button value="cancel" class="btn">Cancel</button>
+          <button type="button" class="btn" data-action="svc-cancel">Cancel</button>
           <button id="btnSave" value="default" class="btn btn-success">OK</button>
         </div>
-      </div>
-    </form>
-  </dialog>
-
-  <dialog id="dlgMux" class="modal">
-    <form method="dialog" class="modal-body" id="muxForm">
-      <div class="modal-head">
-        <div>
-          <div class="modal-title">Multiplex</div>
-          <div class="modal-sub" id="muxLockHint"></div>
-        </div>
-        <button class="icon" value="cancel" aria-label="Fermer">✕</button>
-      </div>
-
-      <div class="grid">
-        <label>
-          <span>Ensemble ID</span>
-          <input id="m_ens_id" placeholder="0xF408" />
-        </label>
-        <label>
-          <span>ECC</span>
-          <input id="m_ecc" placeholder="0xE1" />
-        </label>
-        <label class="span2">
-          <span>Label (PS16)</span>
-          <input id="m_label" maxlength="16" />
-        </label>
-        <label>
-          <span>Shortlabel (PS8)</span>
-          <input id="m_short" maxlength="8" />
-        </label>
-        <label>
-          <span>TX mode</span>
-          <select id="m_txmode">
-            <option value="EASYDAB">EASYDAB</option>
-            <option value="EDI">EDI</option>
-            <option value="USRP1">USRP1</option>
-          </select>
-        </label>
-
-        <label>
-          <span>EasyDAB IP</span>
-          <input id="m_easy_ip" placeholder="0.0.0.0" />
-        </label>
-        <label>
-          <span>EasyDAB Port</span>
-          <input id="m_easy_port" type="number" min="1024" max="65535" />
-        </label>
-
-        <label>
-          <span>Management port</span>
-          <input id="m_mgmt" type="number" min="1024" max="65535" />
-        </label>
-        <label>
-          <span>Telnet port</span>
-          <input id="m_telnet" type="number" min="1024" max="65535" />
-        </label>
-        <label class="span2">
-          <span>ZMQ endpoint (RC)</span>
-          <input id="m_zmq" placeholder="tcp://lo:12722" />
-        </label>
-      </div>
-
-      <div class="modal-foot">
-        <button class="btn" value="cancel">Cancel</button>
-        <button class="btn btn-success" id="btnMuxSave" value="ok">Save</button>
       </div>
     </form>
   </dialog>
@@ -366,6 +328,11 @@
           <div class="modal-sub">Historique cumulé</div>
         </div>
         <button class="icon" value="cancel" aria-label="Fermer">✕</button>
+      </div>
+      <div class="tabs logs-tabs" role="tablist" aria-label="Logs tabs">
+        <button type="button" class="tab active" data-logtab="all">Tous</button>
+        <button type="button" class="tab" data-logtab="dabmux">odr-dabmux</button>
+        <button type="button" class="tab" data-logtab="audio">odr-audioenc / odr-padenc</button>
       </div>
       <pre id="logsPre" class="logs"></pre>
       <div class="modal-actions">
@@ -434,7 +401,7 @@
       <div class="modal-foot">
         <div class="muted" id="muxLockHint"></div>
         <div class="spacer"></div>
-        <button class="btn" value="cancel">Cancel</button>
+        <button type="button" class="btn" data-action="mux-cancel">Cancel</button>
         <button class="btn btn-success" id="btnMuxSave" value="default">Save</button>
       </div>
     </form>
