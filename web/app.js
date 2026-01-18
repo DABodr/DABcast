@@ -141,6 +141,7 @@ function openDialogFor(service) {
 
   $('#f_encbuf').value = service?.input?.encoderBufferMs ?? 200;
   $('#f_gain').value = service?.audio?.gainDb ?? 0;
+  $('#f_codec').value = service?.audio?.codec || 'HE-AAC v1 (SBR)';
 
   // --- Audio tab ---
   $('#f_src').value = (service?.input?.mode || 'VLC').toUpperCase().includes('GST') ? 'GSTREAMER' : 'VLC';
@@ -186,7 +187,7 @@ function openDialogFor(service) {
 
   // lock fields
   // lock fields (identity + dab params like DabCast)
-  ['f_pi','f_ps8','f_ps16','f_lang','f_pty','f_bitrate','f_prot','f_sr','f_ch','f_zbuf','f_zpre'].forEach((id) => {
+  ['f_pi','f_ps8','f_ps16','f_lang','f_pty','f_bitrate','f_prot','f_sr','f_ch','f_zbuf','f_zpre','f_codec'].forEach((id) => {
     const el = document.getElementById(id);
     if (el) el.disabled = locked;
   });
@@ -438,7 +439,8 @@ $('#svcForm').addEventListener('submit', async (e) => {
     audio: {
       gainDb: Number($('#f_gain').value || 0),
       sampleRateHz: Number($('#f_sr').value || 48000),
-      channels: Number($('#f_ch').value || 2)
+      channels: Number($('#f_ch').value || 2),
+      codec: $('#f_codec').value
     },
     watchdog: {
       enabled: $('#f_wd').value === '1',

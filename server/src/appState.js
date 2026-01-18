@@ -141,6 +141,7 @@ export class AppState {
       // kept editable (like DabPlatform) - but you can still lock it later if you want
       if (Number.isInteger(patch.audio.sampleRateHz)) next.audio.sampleRateHz = patch.audio.sampleRateHz;
       if (Number.isInteger(patch.audio.channels)) next.audio.channels = patch.audio.channels;
+      if (typeof patch.audio.codec === 'string') next.audio.codec = patch.audio.codec;
     }
 
     if (patch.metadata) {
@@ -180,6 +181,7 @@ export class AppState {
       if (patch.audio) {
         if (Number.isInteger(patch.audio.sampleRateHz)) next.audio.sampleRateHz = patch.audio.sampleRateHz;
         if (Number.isInteger(patch.audio.channels)) next.audio.channels = patch.audio.channels;
+        if (typeof patch.audio.codec === 'string') next.audio.codec = patch.audio.codec;
       }
 
       if (patch.input) {
@@ -229,7 +231,8 @@ export class AppState {
       audio: {
         channels: 2,
         sampleRateHz: 48000,
-        gainDb: typeof svc.audio?.gainDb === 'number' ? svc.audio.gainDb : 0
+        gainDb: typeof svc.audio?.gainDb === 'number' ? svc.audio.gainDb : 0,
+        codec: svc.audio?.codec || 'HE-AAC v1 (SBR)'
       },
       pad: {
         enabled: true,
@@ -354,6 +357,13 @@ export class AppState {
     } finally {
       clearTimeout(t);
     }
+  }
+
+  _getCodecArgs(codec) {
+    const label = String(codec || 'HE-AAC v1 (SBR)').toUpperCase();
+    if (label.includes('AAC-LC')) return [];
+    if (label.includes('V2') || label.includes('PS')) return ['--sbr', '--ps'];
+    return ['--sbr'];
   }
 
   _startMetadataLoop() {
@@ -537,6 +547,7 @@ export class AppState {
     if (rt) rt.status = 'STARTING';
 
     const activeUri = rt?.activeUri || svc.input.uri;
+    const codecArgs = this._getCodecArgs(svc.audio?.codec);
     const args = [
       '-v',
       activeUri,
@@ -545,7 +556,7 @@ export class AppState {
       String(svc.input.encoderBufferMs ?? 200),
       '-L',
       '--audio-resampler=samplerate',
-      '--ps',
+      ...codecArgs,
       '-c',
       String(svc.audio.channels ?? 2),
       '-p',
