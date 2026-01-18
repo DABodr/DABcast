@@ -1,0 +1,378 @@
+' Gambas class file
+
+Private mpidWgetProc As Process
+
+Public Sub Run() As Boolean
+
+  Return Not Me.ShowModal()
+
+End
+
+Public Sub btnOK_Click()
+Dim strError As String = ""
+  
+  If Trim(txtPS8.Text) == "" Then strError &= "\n" & lblPS8.Text
+  If Trim(txtLNG.Text) == "" Then strError &= "\n" & lblLNG.Text
+  If Trim(txtPI.Text) == "" Then strError &= "\n" & lblPI.Text
+  If strError <> "" Then
+    strError = "The following fields are mandatory :" & strError
+    Message(strError)
+  Else
+    If lblCU.text == "-" Then
+      Message("Invalid combination of bitrate and protection level. Invalid combinations are :\n\nBitrate    Protection\n56           1\n112         1\n320         3\n320         1\n384         4\n384         2")
+    Else
+      grdDataUpdate
+      Me.Close(True)
+    Endif
+  Endif
+
+End
+
+Public Sub btnCancel_Click()
+
+  Me.Close
+
+End
+
+Public Sub btnPTY_Click()
+
+  frmETSI.Load
+  frmETSI.btnETSI1_Click
+  frmETSI.ShowModal
+
+End
+
+Public Sub btnLNG_Click()
+
+  frmETSI.Load
+  frmETSI.btnETSI4_Click
+  frmETSI.ShowModal
+
+End
+
+Public Sub grdDataUpdate()
+Dim intRow As Integer = FMain.grdvPgmList.Row
+
+  FMain.grdvPgmList[intRow, FMain.INT_PS8].Text = txtPS8.Text
+  FMain.grdvPgmList[intRow, FMain.INT_PS16].Text = txtPS16.Text
+  FMain.grdvPgmList[intRow, FMain.INT_BITRATE].Text = cmbBitRate.Text
+  FMain.grdvPgmList[intRow, FMain.INT_SMPRATE].Text = cmbSmpRate.Text
+  FMain.grdvPgmList[intRow, FMain.INT_PI].Text = txtPI.Text
+  FMain.grdvPgmList[intRow, FMain.INT_PTY].Text = cmbPTY.Text
+  FMain.grdvPgmList[intRow, FMain.INT_STREAM].Text = txtStream.Text
+  FMain.grdvPgmList[intRow, FMain.INT_BKPSTREAM].Text = txtStream2.Text
+  FMain.grdvPgmList[intRow, FMain.INT_BUFFER].Text = cmbBuffer.Text
+  FMain.grdvPgmList[intRow, FMain.INT_PREBUFFER].Text = cmbPreBuffer.Text
+  FMain.grdvPgmList[intRow, FMain.INT_CHANNELS].Text = cmbChannels.Text
+  FMain.grdvPgmList[intRow, FMain.INT_PROTECTION].Text = cmbProtection.Text
+  FMain.grdvPgmList[intRow, FMain.INT_DLSURL].Text = txtDLSURL.Text
+  FMain.grdvPgmList[intRow, FMain.INT_DLSDEFAULT].Text = txtDLSDefault.Text
+  FMain.grdvPgmList[intRow, FMain.INT_LNG].Text = txtLNG.Text
+  FMain.grdvPgmList[intRow, FMain.INT_AUDIOGAIN].Text = spnAudioGain.Value
+  FMain.grdvPgmList[intRow, FMain.INT_CU].Text = lblCU.Text
+  FMain.grdvPgmList[intRow, FMain.INT_MOT_BACKCOLOR].Text = colBackground.Value
+  FMain.grdvPgmList[intRow, FMain.INT_MOT_FONTCOLOR].Text = colFont.Value
+  FMain.grdvPgmList[intRow, FMain.INT_MOT_PICTURL].Text = txtPictUrl.Text
+  FMain.grdvPgmList[intRow, FMain.INT_MOT_REFRESHRATE].Text = cmbPictRefreshRate.Text
+  FMain.grdvPgmList[intRow, FMain.INT_MOT_DEFAULTDLSALLOWED].Text = IIf(chkDefaultDlsAllowed.Value, "1", "0")
+  FMain.grdvPgmList[intRow, FMain.INT_MOT_DEFAULTSLSALLOWED].Text = IIf(chkDefaultSlsAllowed.Value, "1", "0")
+  FMain.grdvPgmList[intRow, FMain.INT_MOT_DLSINCLUDED].Text = IIf(chkDlsIncluded.Value, "1", "0")
+End
+
+Public Sub grdDataGet()
+Dim intRow As Integer = FMain.grdvPgmList.Row
+
+  txtPS8.Text = FMain.grdvPgmList[intRow, FMain.INT_PS8].Text
+  txtPS16.Text = FMain.grdvPgmList[intRow, FMain.INT_PS16].Text
+  cmbBitRate.Text = FMain.grdvPgmList[intRow, FMain.INT_BITRATE].Text
+  cmbSmpRate.Text = FMain.grdvPgmList[intRow, FMain.INT_SMPRATE].Text
+  txtPI.Text = FMain.grdvPgmList[intRow, FMain.INT_PI].Text 
+  cmbPTY.Text = FMain.grdvPgmList[intRow, FMain.INT_PTY].Text 
+  txtStream.Text = FMain.grdvPgmList[intRow, FMain.INT_STREAM].Text 
+  txtStream2.Text = FMain.grdvPgmList[intRow, FMain.INT_BKPSTREAM].Text 
+  cmbBuffer.Text = FMain.grdvPgmList[intRow, FMain.INT_BUFFER].Text 
+  cmbPreBuffer.Text = FMain.grdvPgmList[intRow, FMain.INT_PREBUFFER].Text 
+  cmbChannels.Text = FMain.grdvPgmList[intRow, FMain.INT_CHANNELS].Text 
+  cmbProtection.Text = FMain.grdvPgmList[intRow, FMain.INT_PROTECTION].Text 
+  txtDLSURL.Text = FMain.grdvPgmList[intRow, FMain.INT_DLSURL].Text 
+  txtDLSDefault.Text = FMain.grdvPgmList[intRow, FMain.INT_DLSDEFAULT].Text 
+  txtLNG.Text = FMain.grdvPgmList[intRow, FMain.INT_LNG].Text 
+  spnAudioGain.Value = CInt(FMain.grdvPgmList[intRow, FMain.INT_AUDIOGAIN].Text)
+  If FMain.grdvPgmList[intRow, FMain.INT_MOT_BACKCOLOR].Text = "" Then
+    colBackground.Value = Color.White
+  Else
+    colBackground.Value = CInt(FMain.grdvPgmList[intRow, FMain.INT_MOT_BACKCOLOR].Text)
+  Endif
+  If FMain.grdvPgmList[intRow, FMain.INT_MOT_FONTCOLOR].Text = "" Then
+    colFont.Value = Color.Black
+  Else
+    colFont.Value = CInt(FMain.grdvPgmList[intRow, FMain.INT_MOT_FONTCOLOR].Text)
+  Endif
+  txtPictUrl.Text = FMain.grdvPgmList[intRow, FMain.INT_MOT_PICTURL].Text
+  If FMain.grdvPgmList[intRow, FMain.INT_MOT_REFRESHRATE].Text <> "" Then cmbPictRefreshRate.Text = FMain.grdvPgmList[intRow, FMain.INT_MOT_REFRESHRATE].Text
+  If FMain.grdvPgmList[intRow, FMain.INT_MOT_DEFAULTDLSALLOWED].Text = "0" Then chkDefaultDlsAllowed.Value = False
+  If FMain.grdvPgmList[intRow, FMain.INT_MOT_DEFAULTSLSALLOWED].Text = "0" Then chkDefaultSlsAllowed.Value = False
+  If FMain.grdvPgmList[intRow, FMain.INT_MOT_DLSINCLUDED].Text = "0" Then chkDlsIncluded.Value = False
+  UpdateCU
+End
+
+Public Sub Form_Open()
+
+  Me.Top = Screen.Height / 2 - Me.Height / 2
+  Me.Left = Screen.Width / 2 - Me.Width / 2
+  If FMain.mintActiveServices > -1 Then
+    txtPI.Enabled = False
+    txtPS8.Enabled = False
+    txtPS16.Enabled = False
+    txtLNG.Enabled = False
+    cmbBitRate.Enabled = False
+    'cmbBuffer.Enabled = False
+    cmbChannels.Enabled = False
+    'cmbPreBuffer.Enabled = False
+    cmbProtection.Enabled = False
+    cmbPTY.Enabled = False
+    cmbSmpRate.Enabled = False
+    'spnAudioGain.Enabled = False
+  Endif
+  grdDataGet
+  logoUpdate
+  pictUpdate
+
+End
+
+Public Sub cmbBitRate_Change()
+
+  UpdateCU
+
+End
+
+Public Sub cmbProtection_Change()
+
+  UpdateCU
+
+End
+
+Public Sub UpdateCU()
+  
+  Try lblCU.Text = mdlDAB.getCU(CInt(cmbBitRate.Text), CInt(mdlGlobal.strItem(cmbProtection.Text, 1, " ")), mdlDAB.INT_EEP_A)
+  If Error Then lblCU.Text = "-"
+
+  If lblCU.Text = "-1" Then lblCU.Text = "-"
+  
+End
+
+Public Sub btnLogo_Click()
+
+  Dim strFile As String
+  Dim strPiFile As String 
+  
+  Dialog.Title = "Logo import"
+  Dialog.Filter = ["*.jpeg;*.jpg;*.png", "jpg & png", "*", "All files"]
+  Dialog.Path = System.User.Home & "/"
+  If Not Dialog.OpenFile(False) Then
+    strFile = Dialog.Path
+    If Exist(FMain.mstrAppDataPath & "/" & txtPI.Text & ".png") Then Kill FMain.mstrAppDataPath & "/" & txtPI.Text & ".png"
+    If Exist(FMain.mstrAppDataPath & "/" & txtPI.Text & ".jpg") Then Kill FMain.mstrAppDataPath & "/" & txtPI.Text & ".jpg"
+    If Exist(FMain.mstrAppDataPath & "/" & txtPI.Text & ".jpeg") Then Kill FMain.mstrAppDataPath & "/" & txtPI.Text & ".jpeg"
+    If Right(strFile, 4) = "jpeg" Then
+      strPiFile = FMain.mstrAppDataPath & "/" & txtPI.Text & Lower(Right(strFile, 5))
+    Else
+      strPiFile = FMain.mstrAppDataPath & "/" & txtPI.Text & Lower(Right(strFile, 4))
+    Endif
+    If strFile <> strPiFile Then
+      Copy strFile To strPiFile  
+    Endif
+    logoUpdate
+    pictUpdate
+  Endif
+End
+
+Public Sub logoUpdate()
+  Dim pict As Picture 
+  Dim strPiFile As String = mdlDAB.getPiFile(txtPI.Text)
+
+  If Exist(strPiFile) Then
+    If mdlDAB.pictGenerate(FMain.mstrAppDataPath & "/temp2.jpg", strPiFile, "", Color.White, Color.Black, pictLogo.Width - 2, pictLogo.Height - 2) Then
+      pictLogo.Picture = Picture.Load(FMain.mstrAppDataPath & "/temp2.jpg")
+    Endif
+  Else
+    If pictLogo.Picture Then 
+      pict = New Picture(pictLogo.Width - 2, pictLogo.Height - 2)
+      pict.Fill(Color.SelectedForeground)
+      pictLogo.Picture = pict 
+      pict.Clear
+    Endif
+  Endif
+End
+
+Public Sub pictUpdate()
+  Dim pict As Picture 
+  Dim strPiFile As String = mdlDAB.getPiFile(txtPI.Text)
+
+  If Exist(strPiFile) Then
+    If mdlDAB.pictGenerate(FMain.mstrAppDataPath & "/temp.jpg", strPiFile, IIf(chkDlsIncluded.Value, "(DLS text)", ""), colBackground.Color, colFont.Color) Then
+      pictDAB.Picture = Picture.Load(FMain.mstrAppDataPath & "/temp.jpg")
+    Endif
+  Else
+    If pictDAB.Picture Then 
+      pict = New Picture(pictDAB.Width - 2, pictDAB.Height - 2)
+      pict.Fill(Color.SelectedForeground)
+      pictDAB.Picture = pict 
+      pict.Clear
+    Endif
+  Endif
+End
+
+Public Sub colBackground_Change()
+
+  pictUpdate
+
+End
+
+Public Sub colFont_Change()
+
+  pictUpdate
+
+End
+
+Public Sub btnMotCancel_Click()
+
+  Dim strPiFile As String = mdlDAB.getPiFile(txtPI.Text)
+
+  If Exist(strPiFile) Then Kill strPiFile
+  logoUpdate
+  pictUpdate
+
+End
+
+Public Sub chkDlsIncluded_Click()
+
+  pictUpdate
+
+End
+
+Public Sub btnPictUrlTest_Click()
+Dim strShell As String = ""
+Dim strExt As String
+Dim strFile As String = mdlDAB.getPiFile(txtPI.Text, True)
+
+  If Trim(txtPictUrl.Text) = "" Then
+    Message("Pict url needed ...")
+  Else
+    If Exist(strFile) Then
+      Kill strFile 
+    Endif
+
+    If Lower(Right(txtPictUrl.Text, 4)) = ".jpg" Then
+      strExt = ".jpg"
+    Else If Lower(Right(txtPictUrl.Text, 4)) = ".jpeg" Then
+      strExt = ".jpeg"
+    Else If Lower(Right(txtPictUrl.Text, 4)) = ".png" Then
+      strExt = ".png"
+    Endif
+    strShell = "wget --no-cache -O '" & FMain.mstrAppDataPath & "/" & txtPI.Text & "url" & strExt & "' " & txtPictUrl.Text
+    mpidWgetProc = Shell strShell 
+    tmrSLS.Enabled = True
+    lblPictUrlTestResult.Text = "Wait ..."
+    lblPictUrlTestResult.Background = Color.ButtonBackground
+  Endif
+End
+
+Public Sub tmrSLS_Timer()
+  Dim pict As Picture
+  Dim strFile As String = mdlDAB.getPiFile(txtPI.Text, True)
+
+  lblPictUrlTestResult.Text = "Failed ..."
+  lblPictUrlTestResult.Background = Color.red
+  tmrSLS.Enabled = False
+  If mpidWgetProc.State = Process.Running Then
+    mpidWgetProc.Kill
+  Else
+    If Exist(strFile) Then
+      If mdlDAB.pictGenerate(FMain.mstrAppDataPath & "/temp.jpg", strFile, "", Color.Black, Color.Black) Then
+        pictDAB.Picture = Picture.Load(FMain.mstrAppDataPath & "/temp.jpg")
+        lblPictUrlTestResult.Text = "Succeed ..."
+        lblPictUrlTestResult.Background = Color.Green
+      Endif
+    Else
+      If pictDAB.Picture Then
+        pict = New Picture(pictDAB.Width - 2, pictDAB.Height - 2)
+        pict.Fill(Color.SelectedForeground)
+        pictDAB.Picture = pict
+        pict.Clear
+      Endif
+    Endif
+  Endif
+End
+
+Public Sub btnLogoTest_Click()
+  pictUpdate
+End
+
+Public Sub pictLogo_MouseDown()
+  If Mouse.left Then colBackground.Color = pictLogo.Picture.Image[Mouse.X, Mouse.y]
+  If Mouse.Right Then colFont.Color = pictLogo.Picture.Image[Mouse.X, Mouse.y]
+  pictUpdate
+End
+
+Public Sub pictDAB_MouseDown()
+  If Mouse.left Then colBackground.Color = pictDAB.Picture.Image[Mouse.X, Mouse.y]
+  If Mouse.Right Then colFont.Color = pictDAB.Picture.Image[Mouse.X, Mouse.y]
+  pictUpdate
+End
+
+Public Sub btnDlsUrlTest_Click()
+Dim strShell As String = ""
+Dim strFile As String = FMain.mstrAppDataPath & "/" & txtPI.Text & "url.txt"
+
+  If Trim(txtDLSURL.Text) = "" Then
+    Message("Dls url needed ...")
+  Else
+    If Exist(strFile) Then
+      Kill strFile 
+    Endif
+
+    strShell = "wget --no-cache -O '" & strFile & "' " & txtDLSURL.Text
+    mpidWgetProc = Shell strShell
+    tmrDLS.Enabled = True
+    lblDlsUrlTestResult.Text = "Wait ..."
+    lblDlsUrlTestResult.Background = Color.ButtonBackground
+  Endif
+End
+
+Public Sub tmrDLS_Timer()
+Dim strFile As String = FMain.mstrAppDataPath & "/" & txtPI.Text & "url.txt"
+Dim hFile As File
+Dim strData As String = ""
+
+  lblDlsUrlTestResult.Text = "Failed ..."
+  lblDlsUrlTestResult.Background = Color.red
+  tmrDLS.Enabled = False
+  If mpidWgetProc.State = Process.Running Then
+    mpidWgetProc.Kill
+  Else
+    If Exist(strFile) Then
+      hFile = Open strFile For Input
+      Line Input #hFile, strData
+      If strData <> "" Then 
+        lblDlsUrlTestResult.Text = "Succeed ..."
+        lblDlsUrlTestResult.Background = Color.Green
+        Message(strData)
+      Endif
+      hFile.Close
+    Endif
+  Endif
+End
+
+Public Sub lblStream_MouseDown()
+
+  txtDLSURL.Text = FMain.STR_STREAM
+
+End
+
+Public Sub Form_Close()
+
+  pictDAB.Picture = Null
+  pictLogo.Picture = Null
+
+End

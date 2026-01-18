@@ -1,0 +1,48 @@
+2024/02/16 16:09:16 STARTING ...
+odr-padenc -d /home/odr/dab-platform/conf/mot_F9C8 -o F9C8 -t /home/odr/dab-platform/conf/F9C8.dls -s 1
+odr-audioenc -G https://radio10.pro-fhi.net/radio/9038/stream.mp3 --sbr -l -D -b 96 -r 48000 -s 180 -o tcp://0.0.0.0:9000  -g -6 -w /home/odr/dab-platform/conf/F9C8.mta -P F9C8 -c 2 -p 46
+odr-padenc -d /home/odr/dab-platform/conf/mot_F9E4 -o F9E4 -t /home/odr/dab-platform/conf/F9E4.dls -s 1
+odr-audioenc -G https://streams.radio.co/se1a320b47/listen --sbr -l -D -b 96 -r 48000 -s 180 -o tcp://0.0.0.0:9001  -g -1 -w /home/odr/dab-platform/conf/F9E4.mta -P F9E4 -c 2 -p 46
+odr-padenc -d /home/odr/dab-platform/conf/mot_FEE8 -o FEE8 -t /home/odr/dab-platform/conf/FEE8.dls -s 1
+odr-audioenc -G https://croonerradio.ice.infomaniak.ch/croonerradio-hifi.aac --sbr -l -D -b 96 -r 48000 -s 180 -o tcp://0.0.0.0:9002  -g -5 -w /home/odr/dab-platform/conf/FEE8.mta -P FEE8 -c 2 -p 46
+odr-padenc -d /home/odr/dab-platform/conf/mot_F9A3 -o F9A3 -t /home/odr/dab-platform/conf/F9A3.dls -s 1
+odr-audioenc -G https://frequence3.net-radio.fr/frequence3gold.flac --sbr -l -D -b 112 -r 48000 -s 180 -o tcp://0.0.0.0:9003  -g -5 -w /home/odr/dab-platform/conf/F9A3.mta -P F9A3 -c 2 -p 46
+odr-padenc -d /home/odr/dab-platform/conf/mot_F9CF -o F9CF -t /home/odr/dab-platform/conf/F9CF.dls -s 1
+odr-audioenc -G http://t.ly/fCBvR --ps -l -D -b 72 -r 48000 -s 180 -o tcp://0.0.0.0:9004  -g 1 -w /home/odr/dab-platform/conf/F9CF.mta -P F9CF -c 2 -p 44
+odr-padenc -d /home/odr/dab-platform/conf/mot_B98A -o B98A -t /home/odr/dab-platform/conf/B98A.dls -s 1
+odr-audioenc -G https://live.hunter.fm/lofi_high --sbr -l -D -b 96 -r 48000 -s 180 -o tcp://0.0.0.0:9005  -g -1 -w /home/odr/dab-platform/conf/B98A.mta -P B98A -c 2 -p 46
+odr-padenc -d /home/odr/dab-platform/conf/mot_F9B9 -o F9B9 -t /home/odr/dab-platform/conf/F9B9.dls -s 1
+odr-audioenc -G https://stream.deevaradio.net:10443/italopower --ps -l -D -b 96 -r 48000 -s 180 -o tcp://0.0.0.0:9006  -g -5 -w /home/odr/dab-platform/conf/F9B9.mta -P F9B9 -c 2 -p 46
+odr-padenc -d /home/odr/dab-platform/conf/mot_4DC0 -o 4DC0 -t /home/odr/dab-platform/conf/4DC0.dls -s 1
+odr-audioenc -G https://live9.avf.ch/ipmusic320 --sbr -l -D -b 96 -r 48000 -s 180 -o tcp://0.0.0.0:9007  -g -5 -w /home/odr/dab-platform/conf/4DC0.mta -P 4DC0 -c 2 -p 46
+odr-padenc -d /home/odr/dab-platform/conf/mot_8358 -o 8358 -t /home/odr/dab-platform/conf/8358.dls -s 1
+odr-audioenc -G https://22663.live.streamtheworld.com/KINK_SC --sbr -l -D -b 96 -r 48000 -s 180 -o tcp://0.0.0.0:9008  -g -2 -w /home/odr/dab-platform/conf/8358.mta -P 8358 -c 2 -p 46
+odr-padenc -d /home/odr/dab-platform/conf/mot_4DB0 -o 4DB0 -t /home/odr/dab-platform/conf/4DB0.dls -s 1
+odr-audioenc -G https://maxxima.mine.nu/maxxima.mp3 --sbr -l -D -b 96 -r 48000 -s 180 -o tcp://0.0.0.0:9009  -g -4 -w /home/odr/dab-platform/conf/4DB0.mta -P 4DB0 -c 2 -p 46
+odr-padenc -d /home/odr/dab-platform/conf/mot_F9EC -o F9EC -t /home/odr/dab-platform/conf/F9EC.dls -s 1
+odr-audioenc -G https://nova-vnt.ice.infomaniak.ch/nova-vnt-256.aac --sbr -l -D -b 96 -r 48000 -s 180 -o tcp://0.0.0.0:9010  -g -1 -w /home/odr/dab-platform/conf/F9EC.mta -P F9EC -c 2 -p 46
+odr-padenc -d /home/odr/dab-platform/conf/mot_63B5 -o 63B5 -t /home/odr/dab-platform/conf/63B5.dls -s 1
+odr-audioenc -G https://stream.rcs.revma.com/1a6hdnzbebuvv --ps -l -D -b 72 -r 48000 -s 180 -o tcp://0.0.0.0:9011  -g -4 -w /home/odr/dab-platform/conf/63B5.mta -P 63B5 -c 2 -p 44
+odr-padenc -d /home/odr/dab-platform/conf/mot_F9ED -o F9ED -t /home/odr/dab-platform/conf/F9ED.dls -s 1
+odr-audioenc -G https://stream.radioparadise.com/world-etc-flac --sbr -l -D -b 128 -r 48000 -s 180 -o tcp://0.0.0.0:9012  -g -4 -w /home/odr/dab-platform/conf/F9ED.mta -P F9ED -c 2 -p 40
+odr-padenc -d /home/odr/dab-platform/conf/mot_22DE -o 22DE -t /home/odr/dab-platform/conf/22DE.dls -s 1
+odr-audioenc -G https://cast5.magicstreams.gr/sc/drock/stream; --ps -l -D -b 72 -r 48000 -s 180 -o tcp://0.0.0.0:9013  -g -2 -w /home/odr/dab-platform/conf/22DE.mta -P 22DE -c 2 -p 44
+odr-padenc -d /home/odr/dab-platform/conf/mot_2D4B -o 2D4B -t /home/odr/dab-platform/conf/2D4B.dls -s 1
+odr-audioenc -G https://edge04.cdn.bitflip.ee:8888/NRJdnb --sbr -l -D -b 96 -r 48000 -s 180 -o tcp://0.0.0.0:9014  -g -6 -w /home/odr/dab-platform/conf/2D4B.mta -P 2D4B -c 2 -p 46
+odr-padenc -d /home/odr/dab-platform/conf/mot_4DBA -o 4DBA -t /home/odr/dab-platform/conf/4DBA.dls -s 1
+odr-audioenc -G http://spoonradio.ice.infomaniak.ch/spoonradio-hd --sbr -l -D -b 96 -r 48000 -s 180 -o tcp://0.0.0.0:9015  -g -7 -w /home/odr/dab-platform/conf/4DBA.mta -P 4DBA -c 2 -p 46
+odr-padenc -d /home/odr/dab-platform/conf/mot_FAA1 -o FAA1 -t /home/odr/dab-platform/conf/FAA1.dls -s 1
+odr-audioenc -G https://diffusion.lafrap.fr/sun-cine-series.mp3 --ps -l -D -b 72 -r 48000 -s 180 -o tcp://0.0.0.0:9016  -g -2 -w /home/odr/dab-platform/conf/FAA1.mta -P FAA1 -c 2 -p 40
+odr-padenc -d /home/odr/dab-platform/conf/mot_42F3 -o 42F3 -t /home/odr/dab-platform/conf/42F3.dls -s 1
+odr-audioenc -G https://stream.srg-ssr.ch/m/rsj/mp3_128 --ps -l -D -b 72 -r 48000 -s 180 -o tcp://0.0.0.0:9017  -g 0 -w /home/odr/dab-platform/conf/42F3.mta -P 42F3 -c 2 -p 40
+odr-padenc -d /home/odr/dab-platform/conf/mot_42F1 -o 42F1 -t /home/odr/dab-platform/conf/42F1.dls -s 1
+odr-audioenc -G https://stream.srg-ssr.ch/m/rsp/mp3_128 --ps -l -D -b 72 -r 48000 -s 180 -o tcp://0.0.0.0:9018  -g 0 -w /home/odr/dab-platform/conf/42F1.mta -P 42F1 -c 2 -p 40
+odr-dabmux -e /home/odr/dab-platform/conf/dr-mux-conf
+odr-padenc -d /home/odr/dab-platform/conf/mot_F9E4 -o F9E4 -t /home/odr/dab-platform/conf/F9E4.dls -s 1
+odr-audioenc -G https://streams.radio.co/se1a320b47/listen --sbr -l -D -b 96 -r 48000 -s 180 -o tcp://0.0.0.0:9001  -g -1 -w /home/odr/dab-platform/conf/F9E4.mta -P F9E4 -c 2 -p 46
+odr-padenc -d /home/odr/dab-platform/conf/mot_F9E4 -o F9E4 -t /home/odr/dab-platform/conf/F9E4.dls -s 1
+odr-audioenc -G https://streams.radio.co/se1a320b47/listen --sbr -l -D -b 96 -r 48000 -s 180 -o tcp://0.0.0.0:9001  -g -1 -w /home/odr/dab-platform/conf/F9E4.mta -P F9E4 -c 2 -p 46
+odr-padenc -d /home/odr/dab-platform/conf/mot_F9ED -o F9ED -t /home/odr/dab-platform/conf/F9ED.dls -s 1
+odr-audioenc -G https://stream.radioparadise.com/world-etc-320 --sbr -l -D -b 128 -r 48000 -s 180 -o tcp://0.0.0.0:9012  -g -4 -w /home/odr/dab-platform/conf/F9ED.mta -P F9ED -c 2 -p 40
+odr-padenc -d /home/odr/dab-platform/conf/mot_F9ED -o F9ED -t /home/odr/dab-platform/conf/F9ED.dls -s 1
+odr-audioenc -G https://stream.radioparadise.com/world-etc-flac --sbr -l -D -b 128 -r 48000 -s 180 -o tcp://0.0.0.0:9012  -g -4 -w /home/odr/dab-platform/conf/F9ED.mta -P F9ED -c 2 -p 40

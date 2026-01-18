@@ -1,0 +1,1767 @@
+' Gambas class file
+
+Const STR_APP_SETTINGS As String = "dr-settings"
+Const STR_MUX_CONF As String = "dr-mux-conf"
+Const STR_MOD_CONF As String = "dr-mod-conf"
+Const STR_APP_FOLDER As String = "/dab-cast"
+Const STR_UPDATE_FOLDER As String = "/update/"
+Const STR_UPDATE_DEB As String = "pkg.deb"
+Const STR_UPGRADED As String = "Upgraded"
+Const STR_CMD_START As String = "-start"
+Const STR_CMD_UPGRADE As String = "-upgrade"
+
+Const STR_TX_MODE_USRP1 As String = "USRP1"
+Const STR_TX_MODE_EDI As String = "EDI"
+Const STR_TX_MODE_EASYDAB As String = "EASYDAB"
+Public Const STR_STREAM As String = "stream"
+Const STR_OFF_AIR As String = "OFF AIR"
+
+Const STR_LICSRV_URL As String = "127.0.0.1"
+Const STR_LICSRV_PORT As String = "56424"
+Const STR_LICSRV_DELIM As String = "|"
+Const STR_CRYPT_KEY As String = "DJGFRDESDX"
+Public Const INT_LICMAXDAYS As Integer = 30
+
+Const COL_GREEN As Integer = &HB7FF9F&
+Const COL_YELLOW As Integer = &HFFFF7F&
+Const COL_RED As Integer = &HFF3F3F&
+
+Const INT_SILENCE_MAX As Integer = 4 ' second (cf Tmr_TX delai)
+Const INT_GRACE_MAX As Integer = 10 ' Restart source period - second (cf Tmr_TX delai)
+Const INT_SILENCE_WARN As Integer = 2 ' second (cf Tmr_TX delai)
+Const INT_AUDIOENC_INIT_DONE As Integer = 30
+Const INT_SERVICES_STARTED_DELAY As Integer = 3
+
+Const INT_ENCODER_ODR As Integer = 0
+Const INT_ENCODER_AVT As Integer = 1
+
+Const INT_BKPMODE_NORMAL As Integer = 0
+Const INT_BKPMODE_BACKUP As Integer = 1
+Const INT_BKPMODE_GO2NORMAL As Integer = 2
+
+Public Const INT_PS8 As Integer = 0
+Public Const INT_PS16 As Integer = 1
+Public Const INT_BITRATE As Integer = 2
+Public Const INT_SMPRATE As Integer = 3
+Public Const INT_CU As Integer = 4
+Public Const INT_PI As Integer = 5
+Public Const INT_STREAM As Integer = 6
+Public Const INT_BKPSTREAM As Integer = 7
+Public Const INT_BUFFER As Integer = 8
+Public Const INT_PREBUFFER As Integer = 9
+Public Const INT_PTY As Integer = 10
+Public Const INT_CHANNELS As Integer = 11
+Public Const INT_PROTECTION As Integer = 12
+Public Const INT_DLSURL As Integer = 13
+Public Const INT_DLSDEFAULT As Integer = 14
+Public Const INT_LNG As Integer = 15
+Public Const INT_AUDIOGAIN As Integer = 16
+Public Const INT_MOT_BACKCOLOR As Integer = 17
+Public Const INT_MOT_FONTCOLOR As Integer = 18
+Public Const INT_MOT_PICTURL As Integer = 19
+Public Const INT_MOT_REFRESHRATE As Integer = 20
+Public Const INT_MOT_DEFAULTDLSALLOWED As Integer = 21
+Public Const INT_MOT_DEFAULTSLSALLOWED As Integer = 22
+Public Const INT_MOT_DLSINCLUDED As Integer = 23
+
+Public mstrAppDataPath As String
+Public mstrSrc As String[]
+Public mstrMot As String[]
+Public mpcsSrc As Process[]
+Public mpcsCompanionMetaSrc As Process[]
+Public mintEncoderType As Integer[]
+Public mpcsMot As Process[]
+Public mstrPI As String[]
+Public mstrPS8 As String[]
+Public mintMetaSeconds As Integer[]
+Public mpcsWgetDlsProc As Process[]
+Public mpcsWgetSlsProc As Process[]
+Public mstrDlsCurrent As String[]
+Public mstrFileDls As String[]
+Public mstrFileMta As String[]
+Public mstrFileFifo As String[]
+Public mstrFilePad As String[]
+Public mstrDirMot As String[]
+Public mintSilDuration As Integer[]
+Public mintGraceDuration As Integer[]
+Public mintEncInitDone As Integer[]
+Public mintBackupMode As Integer[]
+
+Public mpcsMux As Process
+Public mpcsTestSrc As Process
+Public mintTestEncInitDone As Integer
+Public mintCheckedStream As Integer
+Public mintLastCheckedStream As Integer
+Public mintActiveServices As Integer
+Public mintServicesStartedDelay As Integer
+
+Public mstrShellCsl As String
+Public mstrShellMot As String
+Public mstrShellCmd As String
+
+Public mstrLastStartTime As String
+Public mintLicCheckDays As Integer
+Public mbolLicCodeValidated As Boolean
+Public mbolLicServerOK As Boolean
+Public mintLicServerTry As Integer
+Public mdteLicLastDate As Date
+
+Public mstrUpdateUrl As String
+Public mstrSudoPassword As String
+Public mpcsWgetUpdate As Process
+Public mpcsDpkgUpdate As Process
+
+Private mbolGbBugGridClicked As Boolean
+
+Public Sub Form_Open()
+Dim i As Integer
+Dim strHeaders As String[] = ["PS8", "PS16", "BitRate", "SmpRate", "CU", "PI", "Stream URL", "Backup URL", "Buffer", "Pre-buffer", "PTY", "Channels", "Protection", "DLS URL", "DLS Default", "Lng", "Audio gain", "Backcolor", "Fontcolor", "Pict URL", "Refresh (s)", "DLS Default", "SLS Default", "DLS Included"]
+Dim intColWidth As Integer[] = [70, 110, 40, 40, 30, 30, 300, 300, 40, 40, 40, 40, 40, 300, 80, 40, 40, 40, 40, 300, 40, 40, 40, 40]
+
+  Me.Top = Screen.Height / 2 - Me.Height / 2
+  Me.Left = Screen.Width / 2 - Me.Width / 2
+
+  mbolGbBugGridClicked = False
+
+  mstrAppDataPath = System.User.Home & STR_APP_FOLDER
+
+  mintActiveServices = -1
+  mstrLastStartTime = STR_OFF_AIR
+  mintLicCheckDays = 99
+  mbolLicServerOK = False
+  mintLicServerTry = 0
+  mstrUpdateUrl = ""
+  mstrSudoPassword = ""
+  mpcsWgetUpdate = Null
+  mpcsDpkgUpdate = Null
+
+  ' Get local time stamp with associated datas
+  GetClientData(mdlLicence.tmsGet())
+
+  ' Build main table layout
+  grdvPgmList.Columns.Count = strHeaders.Count
+  For i = 0 To strHeaders.Max
+    grdvPgmList.Columns[i].Title = strHeaders[i]
+    grdvPgmList.Columns[i].Width = intColWidth[i]
+  Next
+
+  ' Check/create folders
+  If Not Exist(mstrAppDataPath) Then 
+    Mkdir mstrAppDataPath
+  Endif
+  If Not Exist(mstrAppDataPath & STR_UPDATE_FOLDER) Then 
+    Mkdir mstrAppDataPath & STR_UPDATE_FOLDER
+  Endif
+
+  ' Load current config
+  configLoad(mstrAppDataPath & "/" & STR_APP_SETTINGS)
+
+  lblSrcPS.text = " -"
+  btnMuxRestart.Enabled = False
+  btnSrcRestart.Enabled = False
+  grdvPgmList_Click
+
+  ' Command line arguments
+  If Application.Args[1] == STR_CMD_START Then
+    Me.enabled = False
+    If Application.Args[1] == STR_CMD_START Then
+      Select Case cmbTxMode.Text
+        ' Waiting for USRP to initialize
+        Case STR_TX_MODE_USRP1
+          lblStatus.Text = "AUTO START - UHD Init..."
+          tmrAutoStart.Delay = 20000
+        ' Waiting for network to initialize
+        Case STR_TX_MODE_EASYDAB
+          lblStatus.Text = "AUTO START - TCP Init..."
+          tmrAutoStart.Delay = 5000
+        ' Waiting for network to initialize
+        Case STR_TX_MODE_EDI
+          lblStatus.Text = "AUTO START - NET Init..."
+          tmrAutoStart.Delay = 5000
+      End Select
+    Endif
+    ' Send start request
+    tmrAutoStart.Enabled = True
+  Else If Application.Args[1] == STR_CMD_UPGRADE Then
+    mstrLastStartTime = STR_UPGRADED
+    Me.enabled = False
+    tmrAutoStart.Delay = 500
+    tmrAutoStart.Enabled = True
+  Endif
+  LicValidateRequest
+End
+
+Public Sub btnLoad_Click()
+
+  Dim strFile As String
+
+  Dialog.Title = "Load config"
+  Dialog.Filter = ["*.dcf", "DAB Config", "*", "All files"]
+  Dialog.Path = System.User.Home & "/"
+  If Not Dialog.OpenFile(False) Then
+    configLoad(Dialog.Path)
+  Endif
+  configSave(mstrAppDataPath & "/" & STR_APP_SETTINGS)
+End
+
+Public Sub configLoad(strFile As String)
+Dim i As Integer
+Dim j As Integer
+Dim strData As String
+Dim strDataType As String
+Dim str As String
+Dim hFile As File
+  
+  If Exist(strFile) Then
+    If grdvPgmList.Rows.Count > 0 Then
+      grdvPgmList.Rows.Remove(0, grdvPgmList.Rows.Count)
+    Endif
+    hFile = Open strFile For Input
+
+    While Not Eof(hFile)
+      Line Input #hFile, strData
+      i = 1
+      strDataType = mdlGlobal.strItem(strData, i, "~")
+      Select Case strDataType
+        Case "GBL"
+          i = i + 1
+          cmbTxMode.Text = mdlGlobal.strItem(strData, i, "~")
+          i = i + 1
+          cmbChannel.Text = mdlGlobal.strItem(strData, i, "~")
+          i = i + 1
+          spnGain.Value = CInt(mdlGlobal.strItem(strData, i, "~"))
+          i = i + 1
+          txtMux8.Text = mdlGlobal.strItem(strData, i, "~")
+          i = i + 1
+          txtMux16.Text = mdlGlobal.strItem(strData, i, "~")
+          i = i + 1
+          txtMuxId.Text = mdlGlobal.strItem(strData, i, "~")
+          i = i + 1
+          txtMuxEcc.Text = mdlGlobal.strItem(strData, i, "~")
+          i = i + 1
+          txtModIP.Text = mdlGlobal.strItem(strData, i, "~")
+          i = i + 1
+          txtModIP2.Text = mdlGlobal.strItem(strData, i, "~")
+          i = i + 1
+          txtDestPort.Text = mdlGlobal.strItem(strData, i, "~")
+          i = i + 1
+          txtDestPort2.Text = mdlGlobal.strItem(strData, i, "~")
+          i = i + 1
+          If mdlGlobal.strItem(strData, i, "~") = "1" Then chkPFT.Value = True
+          i = i + 1
+          txtFEC.Text = mdlGlobal.strItem(strData, i, "~")
+          i = i + 1
+          txtLocalIP.Text = mdlGlobal.strItem(strData, i, "~")
+          i = i + 1
+          Str = mdlGlobal.strItem(strData, i, "~")
+          spnTTL.Value = CInt(IIf(Str == "", 5, Str))
+          i = i + 1
+          txtSrcIP.Text = mdlGlobal.strItem(strData, i, "~")
+        Case "PGM"
+          grdvPgmList.Rows.Insert(j)
+          grdvPgmList.Row = j
+          i = i + 1
+          grdvPgmList[grdvPgmList.Row, INT_STREAM].Text = mdlGlobal.strItem(strData, i, "~")
+          i = i + 1
+          grdvPgmList[grdvPgmList.Row, INT_BKPSTREAM].Text = mdlGlobal.strItem(strData, i, "~")
+          i = i + 1
+          grdvPgmList[grdvPgmList.Row, INT_PS8].Text = mdlGlobal.strItem(strData, i, "~")
+          i = i + 1
+          grdvPgmList[grdvPgmList.Row, INT_PS16].Text = mdlGlobal.strItem(strData, i, "~")
+          i = i + 1
+          grdvPgmList[grdvPgmList.Row, INT_PTY].Text = mdlGlobal.strItem(strData, i, "~")
+          i = i + 1 
+          grdvPgmList[grdvPgmList.Row, INT_BITRATE].Text = mdlGlobal.strItem(strData, i, "~")
+          i = i + 1
+          grdvPgmList[grdvPgmList.Row, INT_SMPRATE].Text = mdlGlobal.strItem(strData, i, "~")
+          i = i + 1
+          grdvPgmList[grdvPgmList.Row, INT_PI].Text = mdlGlobal.strItem(strData, i, "~")
+          i = i + 1
+          grdvPgmList[grdvPgmList.Row, INT_PROTECTION].Text = mdlGlobal.strItem(strData, i, "~")
+          i = i + 1
+          grdvPgmList[grdvPgmList.Row, INT_BUFFER].Text = mdlGlobal.strItem(strData, i, "~")
+          i = i + 1
+          grdvPgmList[grdvPgmList.Row, INT_PREBUFFER].Text = mdlGlobal.strItem(strData, i, "~")
+          i = i + 1
+          grdvPgmList[grdvPgmList.Row, INT_CHANNELS].Text = mdlGlobal.strItem(strData, i, "~")
+          i = i + 1
+          grdvPgmList[grdvPgmList.Row, INT_DLSURL].Text = mdlGlobal.strItem(strData, i, "~")
+          i = i + 1
+          grdvPgmList[grdvPgmList.Row, INT_DLSDEFAULT].Text = mdlGlobal.strItem(strData, i, "~")
+          i = i + 1
+          grdvPgmList[grdvPgmList.Row, INT_LNG].Text = mdlGlobal.strItem(strData, i, "~")
+          i = i + 1
+          grdvPgmList[grdvPgmList.Row, INT_AUDIOGAIN].Text = mdlGlobal.strItem(strData, i, "~")
+          i = i + 1
+          grdvPgmList[grdvPgmList.Row, INT_CU].Text = mdlGlobal.strItem(strData, i, "~")
+          i = i + 1
+          grdvPgmList[grdvPgmList.Row, INT_MOT_BACKCOLOR].Text = mdlGlobal.strItem(strData, i, "~")
+          i = i + 1
+          grdvPgmList[grdvPgmList.Row, INT_MOT_FONTCOLOR].Text = mdlGlobal.strItem(strData, i, "~")
+          i = i + 1
+          If mdlGlobal.strItem(strData, i, "~") <> "" Then grdvPgmList[grdvPgmList.Row, INT_MOT_PICTURL].Text = mdlGlobal.strItem(strData, i, "~")
+          i = i + 1
+          If mdlGlobal.strItem(strData, i, "~") <> "" Then grdvPgmList[grdvPgmList.Row, INT_MOT_REFRESHRATE].Text = mdlGlobal.strItem(strData, i, "~")
+          i = i + 1
+          If mdlGlobal.strItem(strData, i, "~") <> "" Then grdvPgmList[grdvPgmList.Row, INT_MOT_DEFAULTDLSALLOWED].Text = mdlGlobal.strItem(strData, i, "~")
+          i = i + 1
+          If mdlGlobal.strItem(strData, i, "~") <> "" Then grdvPgmList[grdvPgmList.Row, INT_MOT_DEFAULTSLSALLOWED].Text = mdlGlobal.strItem(strData, i, "~")
+          i = i + 1
+          If mdlGlobal.strItem(strData, i, "~") <> "" Then grdvPgmList[grdvPgmList.Row, INT_MOT_DLSINCLUDED].Text = mdlGlobal.strItem(strData, i, "~")
+          j = grdvPgmList.Rows.Count
+      End Select
+    Wend
+    hFile.Close
+  Endif
+  getTotalCU
+End
+
+Public Sub btnSave_Click()
+  Dim strfile As String
+  
+  Dialog.Title = "Save as"
+  Dialog.Filter = ["*.dcf", "DAB Config", "*", "All files"]
+  Dialog.Path = System.User.Home & "/"
+  
+  If Not Dialog.SaveFile() Then
+    strfile = Dialog.Path
+    If Lower(Right(strFile, 3)) <> "dcf" Then strfile = strFile & ".dcf"
+    configSave(strFile)
+  Endif
+End
+
+Public Sub configSave(strFile As String)
+Dim i As Integer
+Dim strData As String = ""
+
+  strData = "GBL~" &
+          cmbTxMode.Text & "~" &
+          cmbChannel.Text & "~" &
+          spnGain.Text & "~" &
+          txtMux8.Text & "~" &
+          txtMux16.Text & "~" &
+          txtMuxId.Text & "~" &
+          txtMuxEcc.Text & "~" &
+          txtModIP.Text & "~" &
+          txtModIP2.Text & "~" &
+          txtSrcPort.Text & "~" &
+          txtDestPort.Text & "~" &
+          IIf(chkPFT.Value = True, "1", "0") & "~" &
+          txtDestPort2.Text & "~" &
+          IIf(chkPFT.Value = True, "1", "0") & "~" &
+          txtFEC.Text & "~" &
+          txtLocalIP.Text & "~" &
+          spnGain.Text & "~" &
+          txtSrcIP.Text
+
+  For i = 0 To grdvPgmList.Rows.Count - 1
+    strData = strData & "\nPGM~" &
+          grdvPgmList[i, INT_STREAM].Text & "~" &
+          grdvPgmList[i, INT_BKPSTREAM].Text & "~" &
+          grdvPgmList[i, INT_PS8].Text & "~" &
+          grdvPgmList[i, INT_PS16].Text & "~" &
+          grdvPgmList[i, INT_PTY].Text & "~" &
+          grdvPgmList[i, INT_BITRATE].Text & "~" &
+          grdvPgmList[i, INT_SMPRATE].Text & "~" &
+          grdvPgmList[i, INT_PI].Text & "~" &
+          grdvPgmList[i, INT_PROTECTION].Text & "~" &
+          grdvPgmList[i, INT_BUFFER].Text & "~" &
+          grdvPgmList[i, INT_PREBUFFER].Text & "~" &
+          grdvPgmList[i, INT_CHANNELS].Text & "~" &
+          grdvPgmList[i, INT_DLSURL].Text & "~" &
+          grdvPgmList[i, INT_DLSDEFAULT].Text & "~" &
+          grdvPgmList[i, INT_LNG].Text & "~" &
+          grdvPgmList[i, INT_AUDIOGAIN].Text & "~" &
+          grdvPgmList[i, INT_CU].Text & "~" &
+          grdvPgmList[i, INT_MOT_BACKCOLOR].Text & "~" &
+          grdvPgmList[i, INT_MOT_FONTCOLOR].Text & "~" &
+          grdvPgmList[i, INT_MOT_PICTURL].Text & "~" &
+          grdvPgmList[i, INT_MOT_REFRESHRATE].Text & "~" &
+          grdvPgmList[i, INT_MOT_DEFAULTDLSALLOWED].Text & "~" &
+          grdvPgmList[i, INT_MOT_DEFAULTSLSALLOWED].Text & "~" &
+          grdvPgmList[i, INT_MOT_DLSINCLUDED].Text 
+  Next
+
+  File.Save(strFile, strData)
+End
+
+
+Public Sub btnStart_Click()
+Dim strLocalHost As String
+
+  ' Display OFF AIR in case it can't go ON AIR
+  lblStatus.Text = "OFF AIR"
+
+  lblLicense.Visible = False
+  mbolLicCodeValidated = mdlLicence.LicenseCheck() 
+
+  If mbolLicCodeValidated Or mintLicCheckDays < INT_LICMAXDAYS Then
+    If DataCheck() Then
+      Me.Enabled = False
+      grdvPgmList.Enabled = False
+
+      btnStop_Click
+      Wait 0.2
+      
+      'Getting host IP in case of Source IP field is still empty
+      Shell "hostname -I" To strLocalHost
+      strLocalHost = Left(strLocalHost, Len(strLocalHost) - 1)
+      strLocalHost = mdlGlobal.strItem(strLocalHost, 1, " ")
+      If txtSrcIP.text == "" Then txtSrcIP.text = strLocalHost
+
+      ' Build member variables
+      mstrSrc = New String[grdvPgmList.Rows.Count]
+      mstrMot = New String[grdvPgmList.Rows.Count]
+      mpcsSrc = New Process[grdvPgmList.Rows.Count]
+      mpcsCompanionMetaSrc = New Process[grdvPgmList.Rows.Count]
+      mintEncoderType = New Integer[grdvPgmList.Rows.Count]
+      mpcsMot = New Process[grdvPgmList.Rows.Count]
+      mstrPI = New String[grdvPgmList.Rows.Count]
+      mstrPS8 = New String[grdvPgmList.Rows.Count]
+      mintMetaSeconds = New Integer[grdvPgmList.Rows.Count]
+      mpcsWgetDlsProc = New Process[grdvPgmList.Rows.Count]
+      mpcsWgetSlsProc = New Process[grdvPgmList.Rows.Count]
+      mstrDlsCurrent = New String[grdvPgmList.Rows.Count]
+      mstrFileDls = New String[grdvPgmList.Rows.Count]
+      mstrFileMta = New String[grdvPgmList.Rows.Count]
+      mstrFileFifo = New String[grdvPgmList.Rows.Count]
+      mstrFilePad = New String[grdvPgmList.Rows.Count]
+      mstrDirMot = New String[grdvPgmList.Rows.Count]
+      mintSilDuration = New Integer[grdvPgmList.Rows.Count]
+      mintGraceDuration = New Integer[grdvPgmList.Rows.Count]
+      mintEncInitDone = New Integer[grdvPgmList.Rows.Count]
+      mintBackupMode = New Integer[grdvPgmList.Rows.Count]
+
+      mstrShellCmd = Format(Now(), "yyyy/mm/dd hh:nn:ss") & " STARTING ..."
+      LogFile(" STARTING ...")
+
+      mintActiveServices = grdvPgmList.Rows.Count - 1
+
+      BuildAndStart
+      BuildMuxConf
+      BuildModConf
+      StartMuxMod
+
+      InitActivityChecker
+
+      Me.Enabled = True
+      grdvPgmList.Enabled = True
+      btnMuxRestart.Enabled = True
+      btnSrcRestart.Enabled = True
+      btnOnAirLog.Enabled = True
+      btnLoad.Enabled = False
+      btnNew.Enabled = False
+      'btnEdit.Enabled = False
+      btnRemove.Enabled = False
+      btnUp.Enabled = False
+      btnDown.Enabled = False
+      mstrLastStartTime = Format(Now(), "yyyy/mm/dd hh:nn:ss")
+      configSave(mstrAppDataPath & "/" & STR_APP_SETTINGS)
+    Endif
+  Else
+    Me.enabled = True
+    Message.Error("License not validated !")
+  Endif
+End
+
+Public Function DataCheck() As Boolean
+Dim i As Integer
+Dim j As Integer
+Dim bolResult As Boolean = True
+
+  If txtLocalIP.Text = "" Then
+    Message("No local IP!")
+    bolResult = False
+  Endif
+
+  If grdvPgmList.Rows.Count > 0 Then
+    For i = 0 To grdvPgmList.Rows.Count - 1
+      For j = i + 1 To grdvPgmList.Rows.Count - 1
+        If grdvPgmList[i, INT_PI].Text = grdvPgmList[j, INT_PI].Text Then
+          Message("Duplicate PI found. Can't start multiplex.")
+          bolResult = False
+        Endif
+      Next
+    Next
+  Else
+    bolResult = False
+  Endif
+  Return bolResult
+End
+
+
+Public Sub InitActivityChecker()
+Dim i As Integer
+  
+  For i = 0 To mintActiveServices
+    mintSilDuration[i] = -1
+    mintGraceDuration[i] = -1
+    mintEncInitDone[i] = 0
+    mintBackupMode[i] = INT_BKPMODE_NORMAL
+  Next
+  mintCheckedStream = -1
+  mintLastCheckedStream = 0
+  mintServicesStartedDelay = 0
+End
+
+Public Sub StartMuxMod()
+Dim strMuxMod As String
+
+  tmrTX.Enabled = False
+  Shell "pkill -f odr-dabmux"
+  Wait 0.9
+  Select Case cmbTxMode.Text
+    Case STR_TX_MODE_USRP1
+      Shell "pkill -f odr-dabmod"
+      Wait 0.9
+      strMuxMod = "odr-dabmux -e " & mstrAppDataPath & "/" & STR_MUX_CONF & " | " & "odr-dabmod -C " & mstrAppDataPath & "/" & STR_MOD_CONF
+    Case STR_TX_MODE_EDI
+      strMuxMod = "odr-dabmux -e " & mstrAppDataPath & "/" & STR_MUX_CONF
+    Case STR_TX_MODE_EASYDAB
+      strMuxMod = "odr-dabmux -e " & mstrAppDataPath & "/" & STR_MUX_CONF
+  End Select
+
+  mpcsMux = Shell strMuxMod For Read As "Process"
+  Wait 0.9
+  mstrShellCmd &= "\r\n" & strMuxMod
+  tmrTX.Enabled = True
+  tmrMainSrcCheck.Enabled = True
+
+  lblStatus.Text = "ON AIR"
+
+End
+
+
+Public Sub BuildAndStart()
+Dim i As Integer
+
+  frmProgress.Show
+  frmProgress.TopOnly = True
+  frmProgress.prgToOnAir.Value = 0
+
+  For i = 0 To mintActiveServices
+    BuildAndStartMot(i)
+    frmProgress.prgToOnAir.Value = (i + 1) / (mintActiveServices + 1)
+    BuildAndStartSource(i)
+  Next
+
+  frmProgress.Close
+
+End
+
+Public Sub tableUpdate(i As Integer)
+    mstrPI[i] = grdvPgmList[i, INT_PI].Text
+    mstrPS8[i] = grdvPgmList[i, INT_PS8].Text
+    mintMetaSeconds[i] = 0
+    mstrDlsCurrent[i] = ""
+    mpcsWgetDlsProc[i] = Null
+    mpcsWgetSlsProc[i] = Null
+    mstrFilePad[i] = mstrAppDataPath & "/" & mstrPI[i] & ".pad"
+    mstrFileMta[i] = mstrAppDataPath & "/" & mstrPI[i] & ".mta"
+    mstrFileDls[i] = mstrAppDataPath & "/" & mstrPI[i] & ".dls"
+    mstrDirMot[i] = mstrAppDataPath & "/mot_" & mstrPI[i]
+    mintEncoderType[i] = INT_ENCODER_ODR
+    If Left(grdvPgmList[i, INT_STREAM].Text, 3) = "AVT" Then mintEncoderType[i] = INT_ENCODER_AVT
+End
+
+Public Sub BuildAndStartSource(i As Integer)
+    tableUpdate(i)
+    BuildSource(i)
+
+    mpcsSrc[i] = Shell mstrSrc[i] For Read As "Process"
+    Wait 0.1
+    mstrShellCmd &= "\r\n" & mstrSrc[i]
+    grdvPgmList[i, INT_STREAM].Background = Color.Green
+    If grdvPgmList[i, INT_BKPSTREAM].Text <> "" Then
+      grdvPgmList[i, INT_BKPSTREAM].Background = Color.RGB(192, 255, 255)
+    Else
+      grdvPgmList[i, INT_BKPSTREAM].Background = Color.White
+    Endif
+End
+
+Public Sub BuildSource(i As Integer)
+    If Trim(grdvPgmList[i, INT_STREAM].Text) = "" Then
+      mstrSrc[i] = "odr-audioenc -l -C 5000 -d default -f raw" &
+        " -g " & CStr(CInt(grdvPgmList[i, INT_AUDIOGAIN].Text)) &
+        " -c " & grdvPgmList[i, INT_CHANNELS].Text & " -s 180 " & 
+        " -P " & mstrFilePad[i] &
+        " -b " & grdvPgmList[i, INT_BITRATE].Text &
+        " -r " & grdvPgmList[i, INT_SMPRATE].Text & "000" & 
+        " -o tcp://" & txtLocalIP.Text & ":90" & Format(i, "00")
+    Else 
+      mstrSrc[i] = audioEncPrepare(i, grdvPgmList[i, INT_STREAM].Text)
+    Endif
+End
+
+Public Function audioEncPrepare(i As Integer, strStream As String, Optional bolTestPcs As Boolean = False) As String
+ Dim strSrc As String = ""
+ Dim strOutPort As String = ""
+ 
+  If bolTestPcs Then
+    strOutPort = "9099"
+  Else 
+    If Exist(mstrFileMta[i]) Then 
+      Kill mstrFileMta[i]
+      Wait 0.1
+    Endif
+    strOutPort = "90" & Format(i, "00")
+  Endif
+
+  If Left(strStream, 3) = "AVT" Then
+    strSrc = "odr-sourcecompanion -l --sbr --pad-port=9405" &
+      " --jitter-size=20 --input-uri=udp://:" & mdlGlobal.strItem(grdvPgmList[i, INT_STREAM].Text, 3, " ") &
+      " --control-uri=udp://" & mdlGlobal.strItem(grdvPgmList[i, INT_STREAM].Text, 2, " ") & ":9325" &
+      " -c " & grdvPgmList[i, INT_CHANNELS].Text & " -p 58" & 
+      " -b " & grdvPgmList[i, INT_BITRATE].Text &
+      " -r " & grdvPgmList[i, INT_SMPRATE].Text & "000" & 
+      " -o tcp://" & txtLocalIP.Text & ":" & strOutPort 
+    If Not bolTestPcs Then
+      strSrc &= " -P " & mstrFilePad[i]
+    Endif
+  Else
+    strSrc = "odr-audioenc -L --audio-resampler=speex-resampler -L --speex-resampler-quality=10 --sbr -l -C 200 -v " & strStream &
+      " -c " & grdvPgmList[i, INT_CHANNELS].Text & " -p 58 " & 
+      " -b " & grdvPgmList[i, INT_BITRATE].Text &
+      " -r " & grdvPgmList[i, INT_SMPRATE].Text & "000" & 
+      " -o tcp://" & txtLocalIP.Text & ":" & strOutPort 
+    If Not bolTestPcs Then
+      strSrc &= " -g " & CStr(CInt(grdvPgmList[i, INT_AUDIOGAIN].Text)) &
+        " -w " & mstrFileMta[i] &
+        " -P " & mstrFilePad[i]
+    Endif
+  Endif
+  Return strSrc
+  
+End
+
+Public Sub BuildAndStartMot(i As Integer)
+    tableUpdate(i)
+    If Not IsNull(mpcsMot[i]) Then
+      mpcsMot[i].Kill
+      mpcsMot[i] = Null
+      Wait 0.1
+    Endif
+    If Not Exist(mstrDirMot[i]) Then 
+      Mkdir mstrDirMot[i]
+    Endif
+    If Exist(mstrFilePad[i]) Then
+      Kill mstrFilePad[i]
+      Wait 0.1
+    Endif
+    mstrMot[i] = "odr-padenc -e -d " & mstrDirMot[i] & " -o " & mstrFilePad[i] & " -t " & mstrFileDls[i] & " -s 1 "
+    Shell "mkfifo " & mstrFilePad[i]
+    File.Save(mstrFileDls[i], "")
+    Wait 0.1
+    mpcsMot[i] = Shell mstrMot[i] For Read As "Process"
+    If lblStatus.Background = COL_GREEN Then mstrShellCmd &= "\r\n" & mstrMot[i]
+End
+
+Public Sub BuildMuxConf()
+  
+Dim strDataHeader As String
+Dim strDataServices As String
+Dim strDataSubChannels As String
+Dim strDataComponents As String
+Dim strDataFooter As String
+Dim i As Integer
+  
+  strDataHeader = "general {\n" &
+    "dabmode 1\n" &  ' 1:BIII & SFN / 2:L & small SFN / 3:cable & sat / 4:L & greater SFN - SFN : 1:96km / 2:24km / 3:12km / 4:48km
+    "nbframes 0\n" &
+    "syslog false\n" &
+    "writescca false\n" &
+    "tist true\n" &
+    "managementport 12720\n" &
+    "}\n" &
+    "remotecontrol {\n" &
+    "telnetport 12721\n" &
+    "zmqendpoint tcp://lo:12722\n" &
+    "}\n" &
+    "ensemble {\n" &
+    "id 0x" & txtMuxId.Text & "\n" &
+    "ecc 0x" & txtMuxEcc.Text & "\n" &
+    "local-time-offset auto\n" &
+    "label \"" & txtMux16.Text & "\"\n" &
+    "shortlabel \"" & txtMux8.text & "\"\n" &
+    "}\n"
+
+  strDataServices = "services {\n"
+  strDataSubChannels = "subchannels {\n"
+  strDataComponents = "components {\n"
+
+  For i = 0 To mintActiveServices
+
+    strDataServices = strDataServices & "srv" & CStr(i) & " {\n" &
+      "label \"" & grdvPgmList[i, INT_PS16].Text & "\"\n" &
+      "shortlabel \"" & grdvPgmList[i, INT_PS8].Text & "\"\n" &
+      "id 0x" & grdvPgmList[i, INT_PI].Text & "\n" &
+      "pty " & mdlGlobal.strItem(grdvPgmList[i, INT_PTY].Text, 1, " ") & "\n" &
+      "language 0x" & grdvPgmList[i, INT_LNG].Text & "\n" &
+      "}\n"
+
+    strDataSubChannels = strDataSubChannels & "sub" & CStr(i) & " {\n" &
+      "type dabplus\n" &
+      "inputfile \"tcp://" & txtLocalIP.Text & ":90" & Format(i, "00") & "\"\n" &
+      "bitrate " & grdvPgmList[i, INT_BITRATE].Text & "\n" &
+      "id " & CStr(i) & "\n" &
+      "protection " & mdlGlobal.strItem(grdvPgmList[i, INT_PROTECTION].Text, 1, " ") & "\n" &
+      "zmq-buffer " & grdvPgmList[i, INT_BUFFER].Text & "\n" &
+      "zmq-prebuffering " & grdvPgmList[i, INT_PREBUFFER].Text & "\n" &
+      "}\n"
+  
+      '"type 0\n" &
+      '"label \"" & txtPS16.Text & "\"\n" &
+      '"shortlabel \"" & txtPS8.Text & "\"\n" &
+    strDataComponents = strDataComponents & "comp" & CStr(i) & " {\n" &
+      "service srv" & CStr(i) & "\n" &
+      "subchannel sub" & CStr(i) & "\n" &
+      "figtype 0x2" & "\n" &
+      "}\n"
+
+  Next
+
+  strDataServices = strDataServices & "}\n"
+  strDataSubChannels = strDataSubChannels & "}\n"
+  strDataComponents = strDataComponents & "}\n"
+
+  Select Case cmbTxMode.Text
+    Case STR_TX_MODE_USRP1
+      strDataFooter = "outputs {\n" &
+        "stdout \"fifo:///dev/stdout?type=raw\"\n" &
+        "}\n"
+    Case STR_TX_MODE_EDI
+      strDataFooter = "outputs {\n" &
+        "throttle \"simul://\"\n" &
+        "edi {\n" &
+        "destinations {\n" &
+        "edi_multicast {\n" &
+        "destination \"" & txtModIP.text & "\"\n" &
+        "sourceport " & txtSrcPort.text & "\n" &
+        "source \"" & txtSrcIP.text & "\"\n" &
+        "ttl " & spnTTL.text & "\n" &
+        "}\n" &
+        "}\n" &
+        "; The settings below apply To all destinations\n" &
+        "; The destination port cannot be set independently For\n" &
+        "; different outputs because it Is Encoded In the transport\n" &
+        "; header Of the PFT layer.\n" &
+        "port " & txtDestPort.text & "\n" &
+        "enable_pft " & IIf(chkPFT.Value = True, "true", "false") & "\n" &
+        "fec " & txtFEC.text & "\n" &
+        "; Interleave fragments From several ETI frames so As To reduce the\n" &
+        "; probability Of errors when several UDP packets are lost In bursts.\n" &
+        "; This comes at the cost Of larger overall latency between multiplexing\n" &
+        "; And modulation.This latency Is Given In milliseconds, And rounded\n" &
+        "; To nearest multiple Of 24 ms.Set To 0 To disable the interleaver.\n" &
+        "interleave 0\n" &
+        "; Length Of a RS chunk, can be overriden\n" &
+        "; Default = 207\n" &
+        "; chunk_len 207\n" &
+        "; Save the packets sent over ethernet To the file. / edi.debug\n" &
+        "dump false\n" &
+        "; show more debugging info\n" &
+        "verbose false\n" &
+        "}\n" &
+        "}\n"
+    Case STR_TX_MODE_EASYDAB
+      strDataFooter = "outputs {\n" &
+       "throttle \"simul://\"\n" & 
+       "zmq \"zmq+tcp://" & txtModIP2.text & ":" & txtDestPort2.text & "\"\n"
+       "}\n"
+  End Select
+
+  File.Save(mstrAppDataPath & "/" & STR_MUX_CONF, strDataHeader & strDataServices & strDataSubChannels & strDataComponents & strDataFooter)
+
+End
+
+Public Sub BuildModConf()
+Dim strData As String
+
+  strData = "[remotecontrol]\n" &
+    "telnet = 1\n" &
+    "telnetport = 2121\n" &
+    "[Log]\n" &
+    "syslog = 0\n" &
+    "filelog = 1\n" &
+    "filename = /dev/stderr\n" &
+    "[input]\n" &
+    "transport = file\n" &
+    "source = /dev/stdin\n" &
+    "Loop = 0\n" &
+    "[modulator]\n" &
+    "gainmode = var\n" &
+    "mode = 1\n" & ' Not used=> use ETI / 1:BIII & SFN / 2:L & small SFN / 3:cable & sat / 4:L & greater SFN - SFN : 1:96km / 2:24km / 3:12km / 4:48km
+    "dac_clk_rate = 128000000\n" &
+    "digital_gain = 1.0\n" &
+    "rate = 3200000\n" &
+    "[firfilter]\n" &
+    "enabled = 0\n" &
+    "filtertapsfile = " & mstrAppDataPath & "/" & "firfilter.txt\n" &
+    "[output]\n" &
+    "output = uhd\n" &
+    "[fileoutput]\n" &
+    "filename = /dev/stdout\n" &
+    "[uhdoutput]\n" &
+    "device = type = usrp1\n" &
+    "device_nr = 0\n" &
+    "subdevice = A:0\n" &
+    "rate = 3200000\n" &
+    "txgain = " & spnGain.Text & "\n" &
+    "channel = " & cmbChannel.Text & "\n" &
+    "refclk_source = internal\n" &
+    "pps_source = none\n" &
+    "behaviour_refclk_lock_lost = ignore\n" &
+    "[delaymanagement]\n" &
+    "synchronous = 0\n" &
+    "mutenotimestamps = 0\n" &
+    "management = dynamic\n" &
+    "fixedoffset = 0.002\n" &
+    "dynamicoffsetfile = modulator_offset"
+
+  File.Save(mstrAppDataPath & "/" & STR_MOD_CONF, strData)
+
+End
+
+Public Sub btnStop_Click()
+
+  tmrTX.Enabled = False
+  tmrMainSrcCheck.Enabled = False
+  tmrAutoStart.Enabled = False
+  Shell "pkill -f odr-dabmux"
+  Shell "pkill -f odr-dabmod"
+  Shell "pkill -f odr-audioenc"
+  Shell "pkill -f odr-sourcecompanion"
+  Shell "pkill -f odr-padenc"
+
+  DataClear()
+  
+  lblStatus.Background = COL_GREEN
+  lblStatus.Text = "OFF AIR"
+  lblSrcPS.text = " -"
+  btnMuxRestart.Enabled = False
+  btnSrcRestart.Enabled = False
+  btnLoad.Enabled = True
+  btnNew.Enabled = True
+  btnEdit.Enabled = True
+  btnRemove.Enabled = True
+  btnUp.Enabled = True
+  btnDown.Enabled = True
+  mintActiveServices = -1
+  mstrLastStartTime = STR_OFF_AIR
+End
+
+Public Sub FileClean(i As Integer)
+  If Exist(mstrFilePad[i]) Then Kill mstrFilePad[i]
+  If Exist(mstrFileMta[i]) Then Kill mstrFileMta[i]
+  If Exist(mstrFileDls[i]) Then Kill mstrFileDls[i]
+End
+
+Public Sub DataClear()
+Dim i As Integer
+  
+  For i = 0 To mintActiveServices 
+    FileClean(i)
+    grdvPgmList[i, INT_STREAM].Background = Color.White
+    grdvPgmList[i, INT_BKPSTREAM].Background = Color.White
+  Next
+
+End
+
+Public Sub grdDataDefault()
+Dim intRow As Integer = FMain.grdvPgmList.Row
+
+  grdvPgmList[intRow, INT_PS8].Text = ""
+  grdvPgmList[intRow, INT_PS16].Text = ""
+  grdvPgmList[intRow, INT_BITRATE].Text = "96"
+  grdvPgmList[intRow, INT_SMPRATE].Text = "48"
+  grdvPgmList[intRow, INT_PI].Text = ""
+  grdvPgmList[intRow, INT_PTY].Text = "10 Pop Music"
+  grdvPgmList[intRow, INT_STREAM].Text = ""
+  grdvPgmList[intRow, INT_BKPSTREAM].Text = ""
+  grdvPgmList[intRow, INT_BUFFER].Text = "40"
+  grdvPgmList[intRow, INT_PREBUFFER].Text = "20"
+  grdvPgmList[intRow, INT_CHANNELS].Text = "2"
+  grdvPgmList[intRow, INT_PROTECTION].Text = "3 C/N Fx 5.7 / Mb 11.8 dB"
+  grdvPgmList[intRow, INT_DLSURL].Text = "stream"
+  grdvPgmList[intRow, INT_DLSDEFAULT].Text = ""
+  grdvPgmList[intRow, INT_LNG].Text = "0"
+  grdvPgmList[intRow, INT_AUDIOGAIN].Text = "0"
+End
+
+Public Sub btnNew_Click()
+Dim j As Integer
+
+  j = grdvPgmList.Rows.Count
+  grdvPgmList.Rows.Insert(j)
+  grdvPgmList.Row = j
+  grdDataDefault
+  frmEdit.ShowDialog
+  If grdvPgmList[j, INT_PI].Text == "" Then
+    grdvPgmList.Rows.Remove(j, 1)
+  Endif
+  getTotalCU
+  configSave(mstrAppDataPath & "/" & STR_APP_SETTINGS)
+End
+
+Public Sub btnRemove_Click()
+
+  If grdvPgmList.Row >= 0 Then
+    grdvPgmList.Rows.Remove(grdvPgmList.Row, 1)
+    getTotalCU
+    configSave(mstrAppDataPath & "/" & STR_APP_SETTINGS)
+  Endif
+
+End
+
+Public Sub tmrTX_Timer()
+
+Dim i As Integer
+
+  If lblStatus.Background = COL_YELLOW Then
+    lblStatus.Background = COL_RED
+  Else
+    lblStatus.Background = COL_YELLOW
+
+    If mintServicesStartedDelay >= INT_SERVICES_STARTED_DELAY Then
+      For i = 0 To mintActiveServices
+        MetaDatas(i)
+        ActivityChecker(i)
+      Next
+    Else 
+      mintServicesStartedDelay += 1
+    Endif
+  Endif
+
+  If mpcsMux.State <> Process.Running Then 
+    btnStop_Click
+    lblStatus.Text = "MUX Stopped. Restarting..."
+    tmrAutoStart.Enabled = True
+  Endif
+  
+  ' Log management
+  If Len(mstrShellCsl) > 200000 Then mstrShellCsl = Right(mstrShellCsl, 100000)
+  If Len(mstrShellMot) > 200000 Then mstrShellMot = Right(mstrShellMot, 100000)
+  If Len(mstrShellCmd) > 200000 Then mstrShellCmd = Right(mstrShellCmd, 100000)
+
+  If mintLicCheckDays <= INT_LICMAXDAYS Then
+    mintLicCheckDays = DateDiff(mdteLicLastDate, Now(), gb.Day)
+    If mbolLicCodeValidated == False And mintLicCheckDays >= INT_LICMAXDAYS Then 
+      btnStop_Click
+      lblLicense.Visible = True
+    Endif
+  Else 
+    mintLicCheckDays = 99
+  Endif
+End
+
+Public Sub Process_Error(strError As String)
+Dim intIndex As Integer
+Dim bolAddToConsole As Boolean = True
+  ' Occurs when odr-audioenc is active
+  ' 
+  ' Tests active audio encoders activity (maybe inactive or displaying "U  " if no stream)
+  For intIndex = 0 To mintActiveServices 
+    If Not IsNull(mpcsSrc[intIndex]) Then
+      If mpcsSrc[intIndex].Id = Last.Id Then
+        bolAddToConsole = False
+        If Right(strError, 3) <> "U  " Then 
+          If mintEncInitDone[intIndex] = INT_AUDIOENC_INIT_DONE Then
+            If mintSilDuration[intIndex] > INT_SILENCE_WARN Then
+              LogFile(mstrPS8[intIndex] & " : BACK ON AIR")
+              If mintBackupMode[intIndex] = INT_BKPMODE_NORMAL Then
+                grdvPgmList[intIndex, INT_STREAM].Background = Color.Green
+                If grdvPgmList[intIndex, INT_BKPSTREAM].Text <> "" Then 
+                  grdvPgmList[intIndex, INT_BKPSTREAM].Background = Color.RGB(192, 255, 255)
+                Endif
+              Else
+                grdvPgmList[intIndex, INT_BKPSTREAM].Background = Color.Green
+              Endif
+            Endif
+            mintSilDuration[intIndex] = 0
+          Else
+            mintEncInitDone[intIndex] += 1
+          Endif
+        Endif
+      Endif
+    Endif
+    If Not IsNull(mpcsMot[intIndex]) Then
+      If mpcsMot[intIndex].Id = Last.Id Then
+        mstrShellMot &= Format(Now(), "yyyy/mm/dd hh:nn:ss") & "\r\n" & strError & "\r\n"
+        bolAddToConsole = False
+      Endif
+    Endif
+  Next
+
+  ' Tests test audio encoder for "go back to main source" procedure
+  If Not IsNull(mpcsTestSrc) Then
+    If mpcsTestSrc.Id = Last.Id Then
+      bolAddToConsole = False
+      If Right(strError, 3) <> "U  " Then 
+        mintTestEncInitDone += 1
+      Endif
+    Endif
+  Endif
+
+  If bolAddToConsole Then mstrShellCsl &= Format(Now(), "yyyy/mm/dd hh:nn:ss") & "\r\n" & strError & "\r\n"
+End
+
+Public Sub Process_Read()
+
+  Dim sLine As String
+
+  sLine = Read #Last, -256
+
+  mstrShellCsl &= Format(Now(), "yyyy/mm/dd hh:nn:ss") & "\r\n" & sLine & "\r\n"
+
+End
+
+Public Sub ActivityChecker(intIndex As Integer)
+  ' Check audio activity / Script linked to Process_error for audio enc feedback
+  If mintSilDuration[intIndex] >= INT_SILENCE_MAX Then ' No activity delay elapsed
+    If mintGraceDuration[intIndex] == -1 Then ' Not in grace period => restart source or request backup source
+      mintGraceDuration[intIndex] = 0 ' Start grace period
+      If mintBackupMode[intIndex] == INT_BKPMODE_NORMAL Then
+        grdvPgmList[intIndex, INT_STREAM].Background = Color.Red
+        If grdvPgmList[intIndex, INT_BKPSTREAM].Text <> "" Then
+          mintGraceDuration[intIndex] = -1
+          mstrSrc[intIndex] = audioEncPrepare(intIndex, grdvPgmList[intIndex, INT_BKPSTREAM].Text)
+          mintBackupMode[intIndex] = INT_BKPMODE_BACKUP ' Backup source will be started at next timer trigger
+          If Exist(mstrFileMta[intIndex]) Then Kill mstrFileMta[intIndex]
+          LogFile(mstrPS8[intIndex] & " : SWITCH TO BACKUP SOURCE")
+        Else
+          SrcRestart(intIndex)
+          LogFile(mstrPS8[intIndex] & " : RESTART SOURCE")
+        Endif
+      Else
+        grdvPgmList[intIndex, INT_BKPSTREAM].Background = Color.Red
+        SrcRestart(intIndex)
+        LogFile(mstrPS8[intIndex] & " : RESTART SOURCE")
+      Endif
+    Else ' Already restarted => In grace period
+      If mintGraceDuration[intIndex] >= INT_GRACE_MAX Then ' Grace period elapsed => Restart source again
+        SrcRestart(intIndex)
+        mintGraceDuration[intIndex] = 0
+      Endif
+      mintGraceDuration[intIndex] = mintGraceDuration[intIndex] + 1
+    Endif
+  Else ' If no activity from odr-audioenc or vlclib underrun "U" => Waiting for max silence duration
+    mintGraceDuration[intIndex] = -1
+    If mintSilDuration[intIndex] = INT_SILENCE_WARN Then
+      LogFile(mstrPS8[intIndex] & " : WARNING")
+      If mintBackupMode[intIndex] = INT_BKPMODE_NORMAL Then
+        grdvPgmList[intIndex, INT_STREAM].Background = Color.Orange
+      Else
+        grdvPgmList[intIndex, INT_BKPSTREAM].Background = Color.Orange
+      Endif
+    Endif
+    mintSilDuration[intIndex] += 1
+  Endif
+
+  ' Go back to main source when this one is verified as working
+  If mintBackupMode[intIndex] == INT_BKPMODE_GO2NORMAL Then
+    grdvPgmList[intIndex, INT_STREAM].Background = Color.Green
+    If grdvPgmList[intIndex, INT_BKPSTREAM].Text <> "" Then
+      grdvPgmList[intIndex, INT_BKPSTREAM].Background = Color.RGB(192, 255, 255)
+    Endif
+    mstrSrc[intIndex] = audioEncPrepare(intIndex, grdvPgmList[intIndex, INT_STREAM].Text)
+    mintBackupMode[intIndex] = INT_BKPMODE_NORMAL
+    If Exist(mstrFileMta[intIndex]) Then Kill mstrFileMta[intIndex]
+    LogFile(mstrPS8[intIndex] & " : BACK TO MAIN SOURCE")
+    SrcRestart(intIndex)
+  Endif
+End
+
+Public Sub SrcRestart(intIndex As Integer)
+  BuildAndStartMot(intIndex)
+  mpcsSrc[intIndex].Kill
+  mpcsSrc[intIndex] = Shell mstrSrc[intIndex] For Read As "Process"
+  mintEncInitDone[intIndex] = 0
+End
+
+Public Sub tmrMainSrcCheck_Timer()
+Dim i As Integer
+Dim intIndex As Integer
+Dim strSrc As String 
+
+  ' Check life status of test audioenc process
+  If mintCheckedStream <> -1 Then
+    If mintTestEncInitDone > INT_AUDIOENC_INIT_DONE Then
+      mintBackupMode[mintCheckedStream] = INT_BKPMODE_GO2NORMAL
+    Endif
+    mpcsTestSrc.Kill
+    mintCheckedStream = -1
+  Endif
+
+  ' Find next program in backup mode and launch a test process
+  If mintCheckedStream == -1 Then
+    For i = 0 To mintActiveServices
+      intIndex = mintLastCheckedStream + i + 1
+      If intIndex > mintActiveServices Then intIndex = intIndex - (mintActiveServices + 1)
+      If mintBackupMode[intIndex] == INT_BKPMODE_BACKUP And mintCheckedStream == -1 Then
+        mintCheckedStream = intIndex
+      Endif
+    Next
+    If mintCheckedStream <> -1 Then
+      mintLastCheckedStream = mintCheckedStream
+      mintTestEncInitDone = 0
+      strSrc = audioEncPrepare(mintCheckedStream, grdvPgmList[mintCheckedStream, INT_STREAM].Text, True)
+      mpcsTestSrc = Shell strSrc For Read As "Process"
+      Wait 0.3
+    Endif
+  Endif
+End
+
+Public Function UrlCharConvert(strUrl As String) As String
+  Dim strReturn As String
+  
+  strReturn = Replace(strUrl, "%20", " ")
+  strReturn = Replace(strReturn, "%21", "!")
+  strReturn = Replace(strReturn, "%22", "\"")
+  strReturn = Replace(strReturn, "%23", "#")
+  strReturn = Replace(strReturn, "%24", "$")
+  strReturn = Replace(strReturn, "%25", "%")
+  strReturn = Replace(strReturn, "%26", "&")
+  strReturn = Replace(strReturn, "%27", "'")
+  strReturn = Replace(strReturn, "%3F", "?")
+  strReturn = Replace(strReturn, "%21", "@")
+  strReturn = Replace(strReturn, "%40", "!")
+  strReturn = Replace(strReturn, "%21", "!")
+  strReturn = Replace(strReturn, "%E0", "à")
+  strReturn = Replace(strReturn, "%E2", "â")
+  strReturn = Replace(strReturn, "%E7", "ç")
+  strReturn = Replace(strReturn, "%E8", "è")
+  strReturn = Replace(strReturn, "%E9", "é")
+  strReturn = Replace(strReturn, "%EA", "ê")
+  strReturn = Replace(strReturn, "%EB", "ë")
+  strReturn = Replace(strReturn, "%F4", "ô")
+  strReturn = Replace(strReturn, "%F9", "ù")
+
+  Return strReturn
+End
+
+Public Sub MetaDatas(i As Integer)
+Dim strFileContent As String
+Dim strDLS As String = ""
+Dim strDlsUrl As String = grdvPgmList[i, INT_DLSURL].Text
+Dim strDlsDefault As String = grdvPgmList[i, INT_DLSDEFAULT].Text
+Dim bolDefaultDlsAllowed As Boolean = IIf(grdvPgmList[i, INT_MOT_DEFAULTDLSALLOWED].Text = "1", True, False)
+Dim strPiDlsDwn As String
+
+Dim strSlsPictUrl As String = grdvPgmList[i, INT_MOT_PICTURL].Text
+Dim bolDlsIncluded As Boolean = IIf(grdvPgmList[i, INT_MOT_DLSINCLUDED].Text = "1", True, False)
+Dim bolDefaultSlsAllowed As Boolean = IIf(grdvPgmList[i, INT_MOT_DEFAULTSLSALLOWED].Text = "1", True, False)
+Dim intMetaRefreshRate As Integer = 15
+Dim bolSendDefaultSls As Boolean = True
+Dim strPiFile As String
+Dim strPiWebFile As String
+Dim strPiDestFile As String
+Dim intBackColor As Integer
+Dim intFontColor As Integer
+Dim strShell As String
+Dim strExt As String = ""
+
+  ' Getting DLS from stream : Check meta file for any change
+  If strDlsUrl == STR_STREAM Then
+    If Left(grdvPgmList[i, INT_STREAM].Text, 3) == "AVT" Then
+      strDLS = strDlsDefault
+      File.Save(mstrFileDls[i], strDLS)
+      mstrDlsCurrent[i] = strDLS
+    Else
+      If Exist(mstrFileMta[i]) Then
+        strFileContent = mdlGlobal.strItem(File.Load(mstrFileMta[i]), 1, "\n")
+        strDLS = FromUrl(strFileContent) ' UrlCharConvert(strFileContent)
+        If mstrDlsCurrent[i] <> strDLS Then 
+          mintMetaSeconds[i] = 0 ' Initialise time counter for slideshow download and update => Update now
+          File.Save(mstrFileDls[i], strDLS)
+          mstrDlsCurrent[i] = strDLS
+        Endif
+      Endif
+    Endif
+  Else If strDlsUrl == "" Then
+    strDLS = strDlsDefault
+    File.Save(mstrFileDls[i], strDLS)
+    mstrDlsCurrent[i] = strDLS
+  Endif
+
+  strPiDlsDwn = mstrAppDataPath & "/_dls_" & mstrPI[i] & ".txt"
+
+  If strDlsUrl <> "" And strDlsUrl <> STR_STREAM Then
+    ' During first second : start download
+    If mintMetaSeconds[i] = 1 Then
+        strShell = "wget --no-cache -O '" & strPiDlsDwn & "' " & strDlsUrl
+        mpcsWgetDlsProc[i] = Shell strShell
+    ' During 2nd second : 
+    ' - Kill download process if it still run : avoid big download
+    ' - if file is downloaded : Get dls string
+    Else If mintMetaSeconds[i] = 2 Then
+      If mpcsWgetDlsProc[i].State = Process.Running Then
+        mpcsWgetDlsProc[i].Kill
+        If bolDefaultDlsAllowed Then strDLS = strDlsDefault
+      Else
+        If Exist(strPiDlsDwn) Then 
+          strDLS = File.Load(strPiDlsDwn)
+          If strDLS == "" Then
+            If bolDefaultDlsAllowed Then strDLS = strDlsDefault
+          Else
+            strDLS = FromUrl(strDLS) ' UrlCharConvert(strDLS )
+          Endif
+        Else
+          If bolDefaultDlsAllowed Then strDLS = strDlsDefault
+        Endif
+      Endif
+      If mstrDlsCurrent[i] <> strDLS Then
+        File.Save(mstrFileDls[i], strDLS)
+        mstrDlsCurrent[i] = strDLS
+      Endif
+    Else If mintMetaSeconds[i] = 3 Then
+      If Exist(strPiDlsDwn) Then
+          Kill strPiDlsDwn
+      Endif
+    Endif
+  Endif
+
+  ' End of DLDS Management
+  ' =======================
+  ' Start of SLS Management
+
+  If grdvPgmList[i, INT_MOT_REFRESHRATE].Text <> "" Then intMetaRefreshRate = CInt(grdvPgmList[i, INT_MOT_REFRESHRATE].Text)
+  strPiDestFile = mstrDirMot[i] & "/_mot_" & mstrPI[i] & ".jpg"
+
+  ' Web downloaded SLS picture management
+  If strSlsPictUrl <> "" Then
+    bolSendDefaultSls = False
+
+    If Lower(Right(strSlsPictUrl, 4)) = ".jpg" Then
+      strExt = ".jpg"
+    Else If Lower(Right(strSlsPictUrl, 4)) = ".jpeg" Then
+      strExt = ".jpeg"
+    Else If Lower(Right(strSlsPictUrl, 4)) = ".png" Then
+      strExt = ".png"
+    Endif
+    strPiWebFile = mstrAppDataPath & "/" & mstrPI[i] & "url" & strExt
+
+    ' During first second : start download
+    If mintMetaSeconds[i] = 1 Then
+        strShell = "wget --no-cache -O '" & strPiWebFile & "' " & strSlsPictUrl 
+        mpcsWgetSlsProc[i] = Shell strShell 
+    ' During 2nd second : 
+    ' - Kill download process if it still run : avoid big download
+    ' - if file is downloaded : generates formated pict in Mot folder
+    Else If mintMetaSeconds[i] = 2 Then
+      If mpcsWgetSlsProc[i].State = Process.Running Then
+        mpcsWgetSlsProc[i].Kill
+        If bolDefaultSlsAllowed Then bolSendDefaultSls = True
+      Else
+        If Exist(strPiWebFile) Then 
+          If Stat(strPiWebFile).Size > 0 Then Shell "convert '" & strPiWebFile & "' -resize 320x240 -quality 50 '" & strPiDestFile & "'" Wait
+          If Not Exist(strPiDestFile) Then 
+            If bolDefaultSlsAllowed Then bolSendDefaultSls = True
+          Endif
+        Else
+          If bolDefaultSlsAllowed Then bolSendDefaultSls = True
+        Endif
+      Endif
+    Else If mintMetaSeconds[i] = 3 Then
+      If Exist(strPiWebFile) Then 
+          Kill strPiWebFile
+      Endif
+    Endif
+  Endif
+
+  ' Default SLS management
+  ' ======================
+  ' During second 2, if default SLS is allowed and PiFile exists
+  ' Generates formated pict in Mot folder
+  strPiFile = mdlDAB.getPiFile(mstrPI[i])
+  If Exist(strPiFile) And bolSendDefaultSls And mintMetaSeconds[i] = 2 Then 
+    If grdvPgmList[i, INT_MOT_BACKCOLOR].Text = "" Then
+      intBackColor = Color.White
+    Else
+      intBackColor = CInt(grdvPgmList[i, INT_MOT_BACKCOLOR].Text)
+    Endif
+    If grdvPgmList[i, INT_MOT_FONTCOLOR].Text = "" Then
+      intFontColor = Color.Black
+    Else
+      intFontColor = CInt(grdvPgmList[i, INT_MOT_FONTCOLOR].Text)
+    Endif
+    mdlDAB.pictGenerate(strPiDestFile, strPiFile, IIf(bolDlsIncluded, mstrDlsCurrent[i], ""), intBackColor, intFontColor)
+  Endif
+
+  ' End of SLS Management
+
+  If mintMetaSeconds[i] >= intMetaRefreshRate Then
+    mintMetaSeconds[i] = 0
+  Else
+    mintMetaSeconds[i] += 1
+  Endif
+End
+
+Public Sub LogFile(str2Add As String)
+Dim strLog As String
+Dim strLogDir As String = mstrAppDataPath & "/logs"
+Dim strLogFile As String = strLogDir & "/log" & Year(Now()) & "-" & Month(Now()) & "-" & Day(Now()) & ".log"
+
+  If Not Exist(strLogDir) Then 
+    Mkdir strLogDir
+  Endif
+
+  If Exist(strLogFile) Then
+    Try strLog = File.Load(strLogFile) & "\r\n" & Format(Now(), "yyyy/mm/dd hh:nn:ss ") & str2Add
+  Else
+    strLog = Format(Now(), "yyyy/mm/dd hh:nn:ss ") & str2Add
+  Endif
+  File.Save(strLogFile, strlog)
+
+End
+
+Public Sub btnPTY_Click()
+
+  frmETSI.Load
+  frmETSI.btnETSI1_Click
+  frmETSI.ShowModal
+
+End
+
+Public Sub btnECC_Click()
+
+  frmETSI.Load
+  frmETSI.btnETSI2_Click
+  frmETSI.ShowModal
+
+End
+
+Public Sub btnLNG_Click()
+
+  frmETSI.Load
+  frmETSI.btnETSI4_Click
+  frmETSI.ShowModal
+
+End
+
+Public Sub btnSetRFGain_Click()
+Dim proc As Process
+
+  proc = Shell "telnet " & txtLocalIP.Text & " 2121" For Output
+  Wait 0.2
+  Write #proc, "set sdr txgain " & spnGain.Text & "\n"
+  Wait 0.2
+  Write #proc, "quit\n"
+
+End
+
+Public Sub btnSrcRestart_Click()
+Dim i As Integer
+
+  For i = 0 To mintActiveServices
+    If mstrPI[i] = grdvPgmList[grdvPgmList.Row, INT_PI].Text Then
+      mintSilDuration[i] = -1
+      mintGraceDuration[i] = -1
+      mintEncInitDone[i] = 0
+      mpcsSrc[i].Kill
+      mintBackupMode[i] = INT_BKPMODE_NORMAL
+      BuildAndStartSource(i)
+      'BuildAndStartMot(i)
+      'SrcRestart(i)
+      'mpcsMot[i].Kill
+      'mpcsSrc[i].Kill
+      'BuildAndStartMot(i)
+      'BuildAndStartSource(i)
+    Endif
+  Next
+End
+
+Public Sub btnOnAirLog_Click()
+Dim strLogFile As String = mstrAppDataPath & "/logs/log" & Year(Now()) & "-" & Month(Now()) & "-" & Day(Now()) & ".log"
+
+  Shell "gedit " & strLogFile
+  Shell "kate " & strLogFile
+End
+
+Public Sub tmrAutoStart_Timer()
+
+  tmrAutoStart.Delay = 30000
+  tmrAutoStart.Enabled = False
+  btnStart_Click()
+  Me.enabled = True
+
+End
+
+Public Sub grdvPgmList_DblClick()
+
+  If mbolGbBugGridClicked Then ' As soon as file dialog open in EditForm, When we close the EditForm, this events occurs a second time and re-open the form.
+    If grdvPgmList.Row >= 0 Then
+      frmEdit.ShowDialog
+      getTotalCU
+      configSave(mstrAppDataPath & "/" & STR_APP_SETTINGS)
+    Endif
+  Endif
+  mbolGbBugGridClicked = False
+End
+
+Public Sub grdvPgmList_Click()
+
+  mbolGbBugGridClicked = True
+  If grdvPgmList.Rows.Count > 0 Then
+    lblSrcPS.Text = " " & grdvPgmList[grdvPgmList.Row, INT_PS8].Text
+  Endif
+End
+
+Public Sub getTotalCU() 
+Dim i As Integer
+Dim intCU As Integer = 0
+
+  For i = 0 To grdvPgmList.Rows.Count - 1
+    Try intCU += CInt(grdvPgmList[i, INT_CU].Text)
+  Next
+  
+  lblTotalCU.text = " Used : " & CStr(intCU) & " / Remaining : " & CStr(864 - intCU) & " / " & grdvPgmList.Rows.Count & " services"
+  If intCU > 864 Then
+    lblTotalCU.Foreground = &HFF0000
+  Else
+    lblTotalCU.Foreground = &H0000FF
+  Endif
+End
+
+Public Sub Form_Close()
+  If Not Me.Enabled Then Stop Event
+  If mpcsMux Then
+    If mpcsMux.State = Process.Running Then
+      Message("Stop transmission before closing the application!")
+      Stop Event
+    Endif
+  Endif
+  configSave(mstrAppDataPath & "/" & STR_APP_SETTINGS)
+End
+
+Public Sub btnAbout_Click()
+
+  frmAbout.ShowDialog
+
+End
+
+Public Sub cmbTxMode_Change()
+
+  panEDI.Visible = False
+  panUSRP.Visible = False
+  panEASYDAB.Visible = False
+  Select Case cmbTxMode.Text
+    Case STR_TX_MODE_EDI
+      panEDI.X = panUSRP.X
+      panEDI.Y = panUSRP.Y
+      panEDI.Visible = True
+    Case STR_TX_MODE_USRP1
+      panUSRP.Visible = True
+    Case STR_TX_MODE_EASYDAB
+      panEASYDAB.X = panUSRP.X
+      panEASYDAB.Y = panUSRP.Y
+      panEASYDAB.Visible = True
+  End Select
+
+End
+
+Public Sub btnHelpEDI_Click()
+
+Message("PFT : Enable the PFT subsystem. If unchecked, AFPackets are sent.\n\n" &
+        "FEC : How many lost fragments can be recovered by Reed - Solomon ?\n" &
+        "If set to 0, the PFT subsystem will only do fragmentation and transport, but no Reed Solomon.\n" &
+        "See ETSI TS 102 821, Clause 7 \"PFT Layer\", Figure 10.\n" &
+        "ODR - DabMux supports \"Fragmentation And Transportation\" And \"Reed - Solomon and transportation\".\n")
+
+End
+
+Public Sub btnMuxRestart_Click()
+
+  tmrAutoStart.Enabled = False
+  If Message.Question("Sure to restart the multiplexer ?", "OK", "Cancel") = 1 Then StartMuxMod
+  tmrAutoStart.Enabled = True
+
+End
+
+Public Sub btnEdit_Click()
+
+  grdvPgmList_DblClick
+
+End
+
+Public Sub Form_KeyPress()
+Dim strLogDir As String = mstrAppDataPath & "/logs"
+Dim strLogFile As String
+
+  If Not Exist(strLogDir) Then 
+    Mkdir strLogDir
+  Endif
+
+  If Key.Control And Key.Shift Then
+    If Key.Code = Key["l"] Then
+      strLogFile = mstrAppDataPath & "/logs/console" & Year(Now()) & "-" & Month(Now()) & "-" & Day(Now()) & ".log"
+      File.Save(strLogFile, mstrShellCsl)
+      Shell "gedit " & strLogFile
+      Shell "kate " & strLogFile
+    Else If Key.Code = Key["s"] Then
+      strLogFile = mstrAppDataPath & "/logs/shell" & Year(Now()) & "-" & Month(Now()) & "-" & Day(Now()) & ".log"
+      File.Save(strLogFile, mstrShellCmd)
+      Shell "gedit " & strLogFile
+      Shell "kate " & strLogFile
+    Else If Key.Code = Key["m"] Then
+      strLogFile = mstrAppDataPath & "/logs/mot" & Year(Now()) & "-" & Month(Now()) & "-" & Day(Now()) & ".log"
+      File.Save(strLogFile, mstrShellMot)
+      Shell "gedit " & strLogFile
+      Shell "kate " & strLogFile
+    Endif
+  Endif
+End
+
+Public Sub btnUp_Click()
+  Dim i As Integer
+
+  If grdvPgmList.Rows.Count > 1 And grdvPgmList.Row >= 1 Then
+    grdvPgmList.Rows.Insert(grdvPgmList.Row - 1)
+    For i = 0 To grdvPgmList.Columns.Count - 1
+      grdvPgmList[grdvPgmList.Row - 1, i].Text = grdvPgmList[grdvPgmList.Row + 1, i].Text
+    Next
+    grdvPgmList.Rows.Remove(grdvPgmList.Row + 1)
+    grdvPgmList.Row = grdvPgmList.Row - 1
+  Endif
+End
+
+Public Sub btnDown_Click()
+  Dim i As Integer
+
+  If grdvPgmList.Rows.Count > 1 And grdvPgmList.Row < grdvPgmList.Rows.Count - 1 And grdvPgmList.Row >= 0 Then
+    grdvPgmList.Rows.Insert(grdvPgmList.Row + 2)
+    For i = 0 To grdvPgmList.Columns.Count - 1
+      grdvPgmList[grdvPgmList.Row + 2, i].Text = grdvPgmList[grdvPgmList.Row, i].Text
+    Next
+    grdvPgmList.Rows.Remove(grdvPgmList.Row)
+    grdvPgmList.Row = grdvPgmList.Row + 1
+  Endif
+End
+
+Public Sub LicValidateRequest()
+  Dim strHostIP As String 
+  Dim strFile As String
+  Dim strFile2 As String
+  Dim str2Send As String
+  Dim strSoCatCmd As String
+  Dim strSoCat As String = ""
+
+  Shell "getent ahostsv4 " & STR_LICSRV_URL To strHostIP
+  strHostIP = mdlGlobal.strItem(strHostIP, 1, " ")
+
+  str2Send = LicDataSendPrepare()
+  strFile = mstrAppDataPath & "/.ls"
+  File.Save(strFile, str2Send)
+  strSoCatCmd = "socat tcp:" & strHostIP & ":" & STR_LICSRV_PORT & " - < " & strFile
+  Shell strSoCatCmd To strSoCat
+  tmrLicCheck.Enabled = False
+  tmrLicCheck.Delay = 60000
+  If strSoCat == "" Then
+    If mintLicServerTry < 100 Then mintLicServerTry += 1
+    If mintLicServerTry == 1 Then
+      tmrLicCheck.Delay = 5000
+    Endif
+  Endif
+  tmrLicCheck.Enabled = True
+  GetClientData(strSoCat, True)
+End
+
+Public Function LicDataSendPrepare() As String
+Dim str2send As String
+Dim strKey As String
+Dim strName As String = ""
+Dim strCompany As String = ""
+Dim strUnlockCode As String = ""
+Dim strMemory As String
+Dim strFilesOpened As String
+Dim strLocalHost As String
+
+    strKey = CStr(Rand(1, 9)) 'mdlLicence.licGenerateKey()
+    mdlLicence.licGet(ByRef strUnlockCode, ByRef strName, ByRef strCompany)
+
+    ' CODE|Version|Nr Services|Last start date
+    Shell "cat /proc/" & Application.Handle & "/status | grep RssAnon:" To strMemory 
+    strMemory = Trim(mdlGlobal.strItem(strMemory, 2, gb.Tab)) 
+    Shell "ls /proc/" & Application.Handle & "/fd | wc -l" To strFilesOpened
+    strFilesOpened = Left(strFilesOpened, Len(strFilesOpened) - 1)
+    Shell "hostname -I" To strLocalHost
+    strLocalHost = Left(strLocalHost, Len(strLocalHost) - 1)
+    strLocalHost = mdlGlobal.strItem(strLocalHost, 1, " ")
+
+    str2send = strName & STR_LICSRV_DELIM &
+      strCompany & STR_LICSRV_DELIM &
+      mdlLicence.GetSerialCode() & STR_LICSRV_DELIM &
+      "V" & Application.Version & " " & Application.Title & STR_LICSRV_DELIM &
+      grdvPgmList.Rows.Count & STR_LICSRV_DELIM &
+      mstrLastStartTime & STR_LICSRV_DELIM &
+      strLocalHost & STR_LICSRV_DELIM &
+      strMemory & STR_LICSRV_DELIM &
+      System.Host & STR_LICSRV_DELIM &
+      strFilesOpened & STR_LICSRV_DELIM &
+      CStr(Rand(0, 999999999)) & STR_LICSRV_DELIM &
+      CStr(Rand(0, 999999999)) & STR_LICSRV_DELIM &
+      CStr(Rand(0, 999999999)) & STR_LICSRV_DELIM &
+      CStr(Rand(0, 999999999)) & STR_LICSRV_DELIM &
+      CStr(Rand(0, 999999999)) & STR_LICSRV_DELIM &
+      CStr(Rand(0, 999999999)) & STR_LICSRV_DELIM &
+      CStr(Rand(0, 999999999)) & STR_LICSRV_DELIM &
+      CStr(Rand(0, 999999999)) & STR_LICSRV_DELIM &
+      CStr(Rand(0, 999999999)) & STR_LICSRV_DELIM &
+      CStr(Rand(0, 999999999)) & STR_LICSRV_DELIM
+    str2send &= GetCRC(str2send)
+    str2send = mdlCrypt.strEncode(strKey, STR_CRYPT_KEY) & mdlCrypt.strEncode(str2send, strKey)
+    Return str2send
+End
+
+Public Sub GetClientData(strBuf As String, Optional bolSave As Boolean = False) 
+Dim strKey As String
+Dim strData As String
+Dim strAllowed1 As String
+Dim strAllowed2 As String
+Dim strDate1 As String
+Dim strDate2 As String
+Dim strUpdateUrl As String
+Dim strUpdate As String
+Dim strDummy1 As String
+Dim strDummy2 As String
+Dim strDummy3 As String
+Dim strDummy4 As String
+Dim strDummy5 As String
+Dim strDummy6 As String
+Dim strDummy7 As String
+Dim strDummy8 As String
+Dim strDummy9 As String
+Dim strCRC As String
+Dim strCRC2 As String
+Dim strReturn As String = "0"
+
+  If Len(strBuf) > 10 Then
+    mintLicServerTry = 0
+    strKey = Left(strBuf, 10)
+    strKey = mdlCrypt.strDecode(strKey, STR_CRYPT_KEY)
+    strCRC = Mid(strBuf, 11, 10)
+    strCRC = mdlCrypt.strDecode(strCRC, strKey)
+    strData = Mid(strBuf, 21, Len(strBuf) - 20)
+    strData = mdlCrypt.strDecode(strData, strKey)
+
+    strAllowed1 = mdlGlobal.strItem(strData, 1, STR_LICSRV_DELIM)
+    strAllowed2 = mdlGlobal.strItem(strData, 3, STR_LICSRV_DELIM)
+    strDate1 = mdlGlobal.strItem(strData, 2, STR_LICSRV_DELIM)
+    strDate2 = mdlGlobal.strItem(strData, 4, STR_LICSRV_DELIM)
+    strUpdateUrl = mdlGlobal.strItem(strData, 5, STR_LICSRV_DELIM)
+    strUpdate = mdlGlobal.strItem(strData, 6, STR_LICSRV_DELIM)
+    mstrSudoPassword = mdlGlobal.strItem(strData, 7, STR_LICSRV_DELIM)
+    strDummy1 = mdlGlobal.strItem(strData, 8, STR_LICSRV_DELIM)
+    strDummy2 = mdlGlobal.strItem(strData, 9, STR_LICSRV_DELIM)
+    strDummy3 = mdlGlobal.strItem(strData, 10, STR_LICSRV_DELIM)
+    strDummy4 = mdlGlobal.strItem(strData, 11, STR_LICSRV_DELIM)
+    strDummy5 = mdlGlobal.strItem(strData, 12, STR_LICSRV_DELIM)
+    strDummy6 = mdlGlobal.strItem(strData, 13, STR_LICSRV_DELIM)
+    strDummy7 = mdlGlobal.strItem(strData, 14, STR_LICSRV_DELIM)
+    strDummy8 = mdlGlobal.strItem(strData, 15, STR_LICSRV_DELIM)
+    strDummy9 = mdlGlobal.strItem(strData, 16, STR_LICSRV_DELIM)
+    strCRC2 = GetCRC(strAllowed1 & STR_LICSRV_DELIM & 
+                      strDate1 & STR_LICSRV_DELIM & 
+                      strAllowed2 & STR_LICSRV_DELIM & 
+                      strDate2 & STR_LICSRV_DELIM &
+                      strUpdateUrl & STR_LICSRV_DELIM &
+                      strUpdate & STR_LICSRV_DELIM &
+                      mstrSudoPassword & STR_LICSRV_DELIM &
+                      strDummy1 & STR_LICSRV_DELIM &
+                      strDummy2 & STR_LICSRV_DELIM &
+                      strDummy3 & STR_LICSRV_DELIM &
+                      strDummy4 & STR_LICSRV_DELIM &
+                      strDummy5 & STR_LICSRV_DELIM &
+                      strDummy6 & STR_LICSRV_DELIM &
+                      strDummy7 & STR_LICSRV_DELIM &
+                      strDummy8 & STR_LICSRV_DELIM &
+                      strDummy9 & STR_LICSRV_DELIM)
+    If strCRC == strCRC2 Then
+      If strAllowed1 == "1" And strAllowed2 == "1" And strDate1 == strDate2 Then
+        ' Licence OK : Check date difference and save time stamp
+        mdteLicLastDate = Date(Mid(strDate1, 1, 4), Mid(strDate1, 6, 2), Mid(strDate1, 9, 2), Mid(strDate1, 12, 2), Mid(strDate1, 15, 2), Mid(strDate1, 18, 2))
+        mintLicCheckDays = DateDiff(mdteLicLastDate, Now(), gb.Day)
+        If mintLicCheckDays < INT_LICMAXDAYS Then lblLicense.Visible = False
+        If bolSave Then mdlLicence.tmsSave(strBuf)
+        mbolLicServerOK = True
+        ' Update management
+        If strUpdateUrl <> "" And strUpdate == 1 And bolSave Then
+          mstrUpdateUrl = strUpdateUrl
+          tmrUpdate.Delay = 5000
+          tmrUpdate.Enabled = True
+          lblUpdate.Visible = True
+        Endif
+      Else
+        mdteLicLastDate = CDate("01/01/1960")
+        mintLicCheckDays = 99
+      Endif
+    Endif
+  Endif
+  LicWarning
+End
+
+Public Function GetCRC(s As String) As String
+Dim i As Integer
+Dim intCRC As Integer = 0
+
+  For i = 1 To Len(s)
+    intCRC += Asc(Mid(s, i, 1))
+  Next
+  Return Format(intCRC, "0000000000")
+End
+
+Public Sub tmrLicCheck_Timer()
+  LicValidateRequest
+End
+
+Public Sub LicWarning()
+  Me.Text = Application.Title 
+  If mbolLicServerOK == False Then Me.Text &= " !"
+End
+
+Public Sub tmrUpdate_Timer()
+Dim strShell As String
+Dim strUpdatePkg As String = mstrAppDataPath & STR_UPDATE_FOLDER & STR_UPDATE_DEB
+
+  tmrUpdate.Enabled = False
+  lblUpdate.Visible = False
+  If mstrUpdateUrl <> "" Then
+    If Exist(strUpdatePkg) Then
+      Kill strUpdatePkg
+      Wait 0.1
+    Endif
+    strShell = "wget --no-cache -O '" & strUpdatePkg & "' " & mstrUpdateUrl
+    mpcsWgetUpdate = Shell strShell Wait
+    mstrUpdateUrl = ""
+    tmrUpdate.Delay = 5000
+    tmrUpdate.Enabled = True
+    lblUpdate.Visible = True
+  Else
+    If mpcsWgetUpdate <> Null Then
+      If mpcsWgetUpdate.State == Process.Stopped Then
+        If Exist(strUpdatePkg) Then
+          strShell = "sudo -S dpkg -i " & strUpdatePkg & " > " & mstrAppDataPath & STR_UPDATE_FOLDER & "update.log << EOF\n" & mstrSudoPassword & "\nEOF"
+          mpcsDpkgUpdate = Shell strShell
+          tmrUpdate.Delay = 5000
+          tmrUpdate.Enabled = True
+          lblUpdate.Visible = True
+        Endif
+      Endif
+      mpcsWgetUpdate.Kill
+      mpcsWgetUpdate = Null
+    Else 
+      If mpcsDpkgUpdate <> Null Then
+        If mpcsDpkgUpdate.State == Process.Stopped Then
+          strShell = Application.Args[0]
+          If mintActiveServices <> -1 Then
+            btnStop_Click
+            Wait 1
+            strShell &= " " & STR_CMD_UPGRADE
+          Endif
+          Shell strShell
+          Wait 2
+          Quit
+        Endif
+      Endif
+    Endif
+  Endif
+End

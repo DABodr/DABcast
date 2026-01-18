@@ -1,0 +1,56 @@
+' Gambas class file
+
+
+Public Sub btnOK_Click()
+
+  Me.Close
+
+End
+
+Public Sub Form_Open()
+
+  Me.Top = Screen.Height / 2 - Me.Height / 2
+  Me.Left = Screen.Width / 2 - Me.Width / 2
+
+End
+
+Public Sub ETSIbtnOff()
+  
+  btnETSI1.Background = -1
+  btnETSI2.Background = -1
+  btnETSI3.Background = -1
+  btnETSI4.Background = -1
+  btnETSI5.Background = -1
+  
+End
+
+
+Public Sub btnETSI1_Click()
+  pic.Picture = picPTY.Picture
+  ETSIbtnOff
+  btnETSI1.Background = &HFFBFBF&
+End
+
+Public Sub btnETSI2_Click()
+  pic.Picture = picEccEu.Picture
+  ETSIbtnOff
+  btnETSI2.Background = &HFFBFBF&
+End
+
+Public Sub btnETSI3_Click()
+  pic.Picture = picEccAf.Picture
+  ETSIbtnOff
+  btnETSI3.Background = &HFFBFBF&
+End
+
+Public Sub btnETSI4_Click()
+  pic.Picture = picLngEu.Picture
+  ETSIbtnOff
+  btnETSI4.Background = &HFFBFBF&
+End
+
+Public Sub btnETSI5_Click()
+  pic.Picture = picLngOthers.Picture
+  ETSIbtnOff
+  btnETSI5.Background = &HFFBFBF&
+End
