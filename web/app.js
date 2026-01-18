@@ -7,9 +7,26 @@ const dlgMux = $('#dlgMux');
 
 const TAB_ORDER = ['general','audio','metadata','triggers'];
 let activeTab = 'general';
+let activeLogTab = 'all';
 
 let STATE = null;
 let editingId = null;
+let LOGS_TEXT = '';
+
+function estimateCu(bitrateKbps, protectionLevel = 3) {
+  const br = Number(bitrateKbps) || 0;
+  const multMap = { 1: 1.45, 2: 1.25, 3: 1.10, 4: 1.00 };
+  const mult = multMap[Number(protectionLevel)] ?? multMap[3];
+  return Math.max(0, Math.round(Math.round(br * 0.75) * mult));
+}
+
+function updateCuPreview() {
+  const bitrate = Number($('#f_bitrate')?.value || 0);
+  const protection = Number($('#f_prot')?.value || 3);
+  const cu = estimateCu(bitrate, protection);
+  const cuEl = $('#f_cu');
+  if (cuEl) cuEl.value = String(cu);
+}
 
 async function api(path, opts) {
   const res = await fetch(path, {
@@ -117,7 +134,7 @@ function openDialogFor(service) {
   const locked = STATE.muxRunning;
 
   $('#dlgTitle').textContent = editingId ? `Edit: ${service?.identity?.ps8}` : 'Add service';
-  $('#dlgLockHint').textContent = locked ? 'ON AIR: identité/bitrate/protection/port verrouillés (comme DabCast)' : '';
+  $('#dlgLockHint').textContent = locked ? 'ON AIR: identité/bitrate/protection verrouillés (comme DabCast)' : '';
 
   // --- General tab ---
   $('#f_pi').value = service?.identity?.pi || '';
@@ -129,17 +146,17 @@ function openDialogFor(service) {
 
   fillBitrates($('#f_bitrate'), STATE.allowedBitratesKbps || [], service?.dab?.bitrateKbps ?? 96);
   $('#f_prot').value = String(service?.dab?.protectionLevel ?? 3);
-  $('#f_port').value = service?.network?.ediOutputTcp?.port ?? '';
 
   $('#f_sr').value = String(service?.audio?.sampleRateHz ?? 48000);
   $('#f_ch').value = String(service?.audio?.channels ?? 2);
-  $('#f_cu').value = String(service?.cu ?? '');
+  $('#f_cu').value = String(service?.cu ?? estimateCu($('#f_bitrate').value, $('#f_prot').value));
 
   $('#f_zbuf').value = service?.input?.zmqBuffer ?? 96;
   $('#f_zpre').value = service?.input?.zmqPrebuffering ?? 48;
 
   $('#f_encbuf').value = service?.input?.encoderBufferMs ?? 200;
   $('#f_gain').value = service?.audio?.gainDb ?? 0;
+  $('#f_codec').value = service?.audio?.codec || 'HE-AAC v1 (SBR)';
 
   // --- Audio tab ---
   $('#f_src').value = (service?.input?.mode || 'VLC').toUpperCase().includes('GST') ? 'GSTREAMER' : 'VLC';
@@ -185,7 +202,7 @@ function openDialogFor(service) {
 
   // lock fields
   // lock fields (identity + dab params like DabCast)
-  ['f_pi','f_ps8','f_ps16','f_lang','f_pty','f_bitrate','f_prot','f_port','f_sr','f_ch','f_zbuf','f_zpre'].forEach((id) => {
+  ['f_pi','f_ps8','f_ps16','f_lang','f_pty','f_bitrate','f_prot','f_sr','f_ch','f_zbuf','f_zpre','f_codec'].forEach((id) => {
     const el = document.getElementById(id);
     if (el) el.disabled = locked;
   });
@@ -225,8 +242,43 @@ async function stop() {
 
 async function showLogs() {
   const text = await api('/api/logs');
-  $('#logsPre').textContent = text;
+  LOGS_TEXT = String(text || '');
+  renderLogs();
   dlgLogs.showModal();
+}
+
+function logLineScope(line) {
+  const match = line.match(/^\[[^\]]+\]\s+\[([^\]]+)\]\s/);
+  return match ? match[1] : '';
+}
+
+function filterLogsByTab(tab) {
+  if (!LOGS_TEXT) return '';
+  if (tab === 'all') return LOGS_TEXT;
+
+  const lines = LOGS_TEXT.split('\n');
+  if (tab === 'dabmux') {
+    return lines.filter((line) => {
+      const scope = logLineScope(line);
+      return scope === 'mux' || scope.startsWith('mux:odr-dabmux');
+    }).join('\n');
+  }
+
+  if (tab === 'audio') {
+    return lines.filter((line) => {
+      const scope = logLineScope(line);
+      return scope.includes(':audioenc') || scope.includes(':padenc');
+    }).join('\n');
+  }
+
+  return LOGS_TEXT;
+}
+
+function renderLogs() {
+  document.querySelectorAll('.logs-tabs .tab').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.logtab === activeLogTab);
+  });
+  $('#logsPre').textContent = filterLogsByTab(activeLogTab);
 }
 
 function openMuxDialog() {
@@ -285,6 +337,25 @@ $('#btnStop').addEventListener('click', stop);
 $('#btnLogs').addEventListener('click', showLogs);
 $('#btnMux').addEventListener('click', openMuxDialog);
 $('#btnAdd').addEventListener('click', () => openDialogFor(null));
+
+document.querySelectorAll('.logs-tabs .tab').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    activeLogTab = btn.dataset.logtab || 'all';
+    renderLogs();
+  });
+});
+
+['f_bitrate', 'f_prot'].forEach((id) => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('change', updateCuPreview);
+});
+
+document.querySelectorAll('[data-action="svc-cancel"]').forEach((btn) => {
+  btn.addEventListener('click', () => dlg.close());
+});
+document.querySelectorAll('[data-action="mux-cancel"]').forEach((btn) => {
+  btn.addEventListener('click', () => dlgMux.close());
+});
 
 // service tabs + wizard buttons
 document.querySelectorAll('#dlgService .tab').forEach((b) => {
@@ -364,6 +435,18 @@ svcTableBody.addEventListener('click', async (e) => {
 $('#svcForm').addEventListener('submit', async (e) => {
   e.preventDefault();
 
+  const missing = [];
+  if (!$('#f_ps8').value.trim()) missing.push('PS8');
+  if (!$('#f_pi').value.trim()) missing.push('PI');
+  if (!$('#f_lang').value.trim()) missing.push('Language');
+  const piValue = $('#f_pi').value.trim();
+  if (piValue && !/^[0-9a-fA-F]{4}$/.test(piValue)) {
+    return alert('PI invalide (4 hexadécimaux requis).');
+  }
+  if (missing.length) {
+    return alert(`Champs obligatoires: ${missing.join(', ')}`);
+  }
+
   const payload = {
     identity: {
       pi: $('#f_pi').value.trim() || undefined,
@@ -388,12 +471,8 @@ $('#svcForm').addEventListener('submit', async (e) => {
     audio: {
       gainDb: Number($('#f_gain').value || 0),
       sampleRateHz: Number($('#f_sr').value || 48000),
-      channels: Number($('#f_ch').value || 2)
-    },
-    network: {
-      ediOutputTcp: {
-        port: Number($('#f_port').value || 0)
-      }
+      channels: Number($('#f_ch').value || 2),
+      codec: $('#f_codec').value
     },
     watchdog: {
       enabled: $('#f_wd').value === '1',
