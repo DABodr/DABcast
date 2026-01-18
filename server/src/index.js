@@ -127,6 +127,26 @@ app.get('/api/logs', (req, res) => {
   res.type('text/plain').send(content);
 });
 
+app.post('/api/metadata/test/dls', async (req, res) => {
+  try {
+    const url = String((req.body || {}).url || '');
+    const result = await state.testDlsUrl(url);
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e.message || e) });
+  }
+});
+
+app.post('/api/metadata/test/sls', async (req, res) => {
+  try {
+    const url = String((req.body || {}).url || '');
+    const result = await state.testSlsUrl(url);
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e.message || e) });
+  }
+});
+
 // Serve MOT/SLS demo assets for preview (logo, slideshow directory, etc.)
 app.get('/api/mot/:svcId/logo', (req, res) => {
   try {
