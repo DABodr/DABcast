@@ -93,6 +93,13 @@ function render() {
   svcTableBody.innerHTML = '';
 
   const services = [...STATE.preset.services].sort((a,b) => (a.ui?.order ?? 0) - (b.ui?.order ?? 0));
+  if (!services.length) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td class="muted" colspan="14">Aucun service trouvé.</td>`;
+    svcTableBody.appendChild(tr);
+    return;
+  }
+
   for (const svc of services) {
     const tr = document.createElement('tr');
     const status = svc.runtime?.status || 'UNKNOWN';
@@ -246,8 +253,17 @@ function setActiveTab(tab) {
 }
 
 async function refresh() {
-  STATE = await api('/api/state');
-  render();
+  try {
+    STATE = await api('/api/state');
+    render();
+  } catch (err) {
+    const capEl = $('#capHint');
+    if (capEl) {
+      capEl.textContent = `Erreur API: ${err.message || String(err)}`;
+      capEl.classList.remove('cap-ok','cap-warn','cap-bad');
+      capEl.classList.add('cap-bad');
+    }
+  }
 }
 
 async function start() {
