@@ -7,9 +7,26 @@ const dlgMux = $('#dlgMux');
 
 const TAB_ORDER = ['general','audio','metadata','triggers'];
 let activeTab = 'general';
+let activeLogTab = 'all';
 
 let STATE = null;
 let editingId = null;
+let LOGS_TEXT = '';
+
+function estimateCu(bitrateKbps, protectionLevel = 3) {
+  const br = Number(bitrateKbps) || 0;
+  const multMap = { 1: 1.45, 2: 1.25, 3: 1.10, 4: 1.00 };
+  const mult = multMap[Number(protectionLevel)] ?? multMap[3];
+  return Math.max(0, Math.round(Math.round(br * 0.75) * mult));
+}
+
+function updateCuPreview() {
+  const bitrate = Number($('#f_bitrate')?.value || 0);
+  const protection = Number($('#f_prot')?.value || 3);
+  const cu = estimateCu(bitrate, protection);
+  const cuEl = $('#f_cu');
+  if (cuEl) cuEl.value = String(cu);
+}
 
 async function api(path, opts) {
   const res = await fetch(path, {
@@ -117,7 +134,7 @@ function openDialogFor(service) {
   const locked = STATE.muxRunning;
 
   $('#dlgTitle').textContent = editingId ? `Edit: ${service?.identity?.ps8}` : 'Add service';
-  $('#dlgLockHint').textContent = locked ? 'ON AIR: identité/bitrate/protection/port verrouillés (comme DabCast)' : '';
+  $('#dlgLockHint').textContent = locked ? 'ON AIR: identité/bitrate/protection verrouillés (comme DabCast)' : '';
 
   // --- General tab ---
   $('#f_pi').value = service?.identity?.pi || '';
@@ -129,17 +146,17 @@ function openDialogFor(service) {
 
   fillBitrates($('#f_bitrate'), STATE.allowedBitratesKbps || [], service?.dab?.bitrateKbps ?? 96);
   $('#f_prot').value = String(service?.dab?.protectionLevel ?? 3);
-  $('#f_port').value = service?.network?.ediOutputTcp?.port ?? '';
 
   $('#f_sr').value = String(service?.audio?.sampleRateHz ?? 48000);
   $('#f_ch').value = String(service?.audio?.channels ?? 2);
-  $('#f_cu').value = String(service?.cu ?? '');
+  $('#f_cu').value = String(service?.cu ?? estimateCu($('#f_bitrate').value, $('#f_prot').value));
 
   $('#f_zbuf').value = service?.input?.zmqBuffer ?? 96;
   $('#f_zpre').value = service?.input?.zmqPrebuffering ?? 48;
 
   $('#f_encbuf').value = service?.input?.encoderBufferMs ?? 200;
   $('#f_gain').value = service?.audio?.gainDb ?? 0;
+  $('#f_codec').value = service?.audio?.codec || 'HE-AAC v1 (SBR)';
 
   // --- Audio tab ---
   $('#f_src').value = (service?.input?.mode || 'VLC').toUpperCase().includes('GST') ? 'GSTREAMER' : 'VLC';
@@ -159,8 +176,12 @@ function openDialogFor(service) {
   $('#f_meta_title').value = service?.metadata?.titleKey || 'title';
   $('#f_meta_sls').value = service?.metadata?.slsKey || 'cover';
   $('#f_default_dls').value = service?.metadata?.defaultDls || '';
+  $('#f_sls_url').value = service?.metadata?.slsUrl || '';
   $('#f_sls_back').value = service?.metadata?.slsBackColor || '';
   $('#f_sls_font').value = service?.metadata?.slsFontColor || '';
+  $('#f_dls_allowed').value = service?.metadata?.defaultDlsAllowed ? '1' : '0';
+  $('#f_sls_allowed').value = service?.metadata?.defaultSlsAllowed ? '1' : '0';
+  $('#f_dls_included').value = service?.metadata?.dlsIncluded ? '1' : '0';
 
   // SLS preview (logo)
   const img = $('#slsImg');
@@ -185,7 +206,7 @@ function openDialogFor(service) {
 
   // lock fields
   // lock fields (identity + dab params like DabCast)
-  ['f_pi','f_ps8','f_ps16','f_lang','f_pty','f_bitrate','f_prot','f_port','f_sr','f_ch','f_zbuf','f_zpre'].forEach((id) => {
+  ['f_pi','f_ps8','f_ps16','f_lang','f_pty','f_bitrate','f_prot','f_sr','f_ch','f_zbuf','f_zpre','f_codec'].forEach((id) => {
     const el = document.getElementById(id);
     if (el) el.disabled = locked;
   });
@@ -225,8 +246,43 @@ async function stop() {
 
 async function showLogs() {
   const text = await api('/api/logs');
-  $('#logsPre').textContent = text;
+  LOGS_TEXT = String(text || '');
+  renderLogs();
   dlgLogs.showModal();
+}
+
+function logLineScope(line) {
+  const match = line.match(/^\[[^\]]+\]\s+\[([^\]]+)\]\s/);
+  return match ? match[1] : '';
+}
+
+function filterLogsByTab(tab) {
+  if (!LOGS_TEXT) return '';
+  if (tab === 'all') return LOGS_TEXT;
+
+  const lines = LOGS_TEXT.split('\n');
+  if (tab === 'dabmux') {
+    return lines.filter((line) => {
+      const scope = logLineScope(line);
+      return scope === 'mux' || scope.startsWith('mux:odr-dabmux');
+    }).join('\n');
+  }
+
+  if (tab === 'audio') {
+    return lines.filter((line) => {
+      const scope = logLineScope(line);
+      return scope.includes(':audioenc') || scope.includes(':padenc');
+    }).join('\n');
+  }
+
+  return LOGS_TEXT;
+}
+
+function renderLogs() {
+  document.querySelectorAll('.logs-tabs .tab').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.logtab === activeLogTab);
+  });
+  $('#logsPre').textContent = filterLogsByTab(activeLogTab);
 }
 
 function openMuxDialog() {
@@ -286,6 +342,25 @@ $('#btnLogs').addEventListener('click', showLogs);
 $('#btnMux').addEventListener('click', openMuxDialog);
 $('#btnAdd').addEventListener('click', () => openDialogFor(null));
 
+document.querySelectorAll('.logs-tabs .tab').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    activeLogTab = btn.dataset.logtab || 'all';
+    renderLogs();
+  });
+});
+
+['f_bitrate', 'f_prot'].forEach((id) => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('change', updateCuPreview);
+});
+
+document.querySelectorAll('[data-action="svc-cancel"]').forEach((btn) => {
+  btn.addEventListener('click', () => dlg.close());
+});
+document.querySelectorAll('[data-action="mux-cancel"]').forEach((btn) => {
+  btn.addEventListener('click', () => dlgMux.close());
+});
+
 // service tabs + wizard buttons
 document.querySelectorAll('#dlgService .tab').forEach((b) => {
   b.addEventListener('click', () => setActiveTab(b.dataset.tab));
@@ -344,6 +419,57 @@ async function clearLogo() {
 $('#btnUploadLogo').addEventListener('click', () => uploadLogo().catch((e) => alert(e.message || String(e))));
 $('#btnClearLogo').addEventListener('click', () => clearLogo().catch((e) => alert(e.message || String(e))));
 
+async function testDlsUrl() {
+  const statusEl = $('#dlsTestStatus');
+  if (statusEl) statusEl.textContent = 'Test...';
+  const url = $('#f_meta_url').value.trim();
+  if (!url) {
+    if (statusEl) statusEl.textContent = 'URL manquante';
+    return;
+  }
+  try {
+    const res = await api('/api/metadata/test/dls', {
+      method: 'POST',
+      body: JSON.stringify({ url })
+    });
+    if (statusEl) statusEl.textContent = res?.ok ? 'OK' : 'Échec';
+    if (res?.text) alert(res.text);
+  } catch (err) {
+    if (statusEl) statusEl.textContent = 'Erreur';
+    alert(err.message || String(err));
+  }
+}
+
+async function testSlsUrl() {
+  const statusEl = $('#slsTestStatus');
+  if (statusEl) statusEl.textContent = 'Test...';
+  const url = $('#f_sls_url').value.trim();
+  if (!url) {
+    if (statusEl) statusEl.textContent = 'URL manquante';
+    return;
+  }
+  try {
+    const res = await api('/api/metadata/test/sls', {
+      method: 'POST',
+      body: JSON.stringify({ url })
+    });
+    if (statusEl) statusEl.textContent = res?.ok ? 'OK' : 'Échec';
+    if (res?.dataUrl) {
+      const img = $('#slsImg');
+      if (img) {
+        img.src = res.dataUrl;
+        img.style.display = '';
+      }
+    }
+  } catch (err) {
+    if (statusEl) statusEl.textContent = 'Erreur';
+    alert(err.message || String(err));
+  }
+}
+
+$('#btnTestDls').addEventListener('click', () => testDlsUrl().catch((e) => alert(e.message || String(e))));
+$('#btnTestSls').addEventListener('click', () => testSlsUrl().catch((e) => alert(e.message || String(e))));
+
 svcTableBody.addEventListener('click', async (e) => {
   const btn = e.target.closest('button');
   if (!btn) return;
@@ -363,6 +489,18 @@ svcTableBody.addEventListener('click', async (e) => {
 
 $('#svcForm').addEventListener('submit', async (e) => {
   e.preventDefault();
+
+  const missing = [];
+  if (!$('#f_ps8').value.trim()) missing.push('PS8');
+  if (!$('#f_pi').value.trim()) missing.push('PI');
+  if (!$('#f_lang').value.trim()) missing.push('Language');
+  const piValue = $('#f_pi').value.trim();
+  if (piValue && !/^[0-9a-fA-F]{4}$/.test(piValue)) {
+    return alert('PI invalide (4 hexadécimaux requis).');
+  }
+  if (missing.length) {
+    return alert(`Champs obligatoires: ${missing.join(', ')}`);
+  }
 
   const payload = {
     identity: {
@@ -388,12 +526,8 @@ $('#svcForm').addEventListener('submit', async (e) => {
     audio: {
       gainDb: Number($('#f_gain').value || 0),
       sampleRateHz: Number($('#f_sr').value || 48000),
-      channels: Number($('#f_ch').value || 2)
-    },
-    network: {
-      ediOutputTcp: {
-        port: Number($('#f_port').value || 0)
-      }
+      channels: Number($('#f_ch').value || 2),
+      codec: $('#f_codec').value
     },
     watchdog: {
       enabled: $('#f_wd').value === '1',
@@ -409,8 +543,12 @@ $('#svcForm').addEventListener('submit', async (e) => {
       titleKey: $('#f_meta_title').value.trim() || null,
       slsKey: $('#f_meta_sls').value.trim() || null,
       defaultDls: $('#f_default_dls').value.trim() || null,
+      slsUrl: $('#f_sls_url').value.trim() || null,
       slsBackColor: $('#f_sls_back').value.trim() || null,
-      slsFontColor: $('#f_sls_font').value.trim() || null
+      slsFontColor: $('#f_sls_font').value.trim() || null,
+      defaultDlsAllowed: $('#f_dls_allowed').value === '1',
+      defaultSlsAllowed: $('#f_sls_allowed').value === '1',
+      dlsIncluded: $('#f_dls_included').value === '1'
     }
   };
 
