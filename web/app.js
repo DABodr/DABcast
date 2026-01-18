@@ -51,6 +51,11 @@ function badge(status) {
   return `<span class="${cls}">${s}</span>`;
 }
 
+function streamDot(active, fallback = false) {
+  const cls = active ? 'ok' : (fallback ? 'warn' : '');
+  return `<span class="dot ${cls}"></span>`;
+}
+
 function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
 }
@@ -90,6 +95,13 @@ function render() {
   for (const svc of services) {
     const tr = document.createElement('tr');
     const status = svc.runtime?.status || 'UNKNOWN';
+    const activeUri = svc.runtime?.activeUri || '';
+    const mainUri = svc.input?.uri || '';
+    const backupUri = svc.input?.backupUri || '';
+    const activeIsMain = activeUri && mainUri && activeUri === mainUri;
+    const activeIsBackup = activeUri && backupUri && activeUri === backupUri;
+    const dlsPreview = svc.runtime?.currentDls || svc.metadata?.defaultDls || '';
+    const slsPreview = svc.runtime?.currentSlsUrl || svc.metadata?.slsUrl || '';
 
     tr.innerHTML = `
       <td>${badge(status)}</td>
@@ -97,12 +109,19 @@ function render() {
         <div class="ps">${esc(svc.identity.ps8)}</div>
         <div class="muted">${esc(svc.identity.ps16 || '')}</div>
       </td>
+      <td>${streamDot(activeIsMain)}</td>
+      <td>${streamDot(activeIsBackup, Boolean(backupUri))}</td>
       <td>${svc.dab.bitrateKbps} kbps</td>
       <td>${svc.cu ?? ''}</td>
       <td>${esc(String(svc.dab.protectionLevel ?? 3))}</td>
+      <td>${esc(svc.audio?.codec || 'HE-AAC v1')}</td>
+      <td>${esc(String(svc.audio?.channels ?? 2))}</td>
+      <td>${esc(String((svc.audio?.sampleRateHz ?? 48000) / 1000))} kHz</td>
       <td>${svc.network.ediOutputTcp.port}</td>
       <td class="muted">${esc(svc.input.uri || '')}</td>
       <td class="muted">${esc(svc.input.backupUri || '')}</td>
+      <td class="muted">${esc(dlsPreview)}</td>
+      <td class="muted">${esc(slsPreview)}</td>
       <td class="row-actions">
         <button class="btn btn-mini" data-act="edit" data-id="${svc.id}">Edit</button>
         <button class="btn btn-mini" data-act="del" data-id="${svc.id}">Del</button>

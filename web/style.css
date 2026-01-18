@@ -103,6 +103,7 @@ body {
 }
 .tablewrap { overflow: auto; }
 .table { width: 100%; border-collapse: collapse; min-width: 960px; }
+.table-wide { min-width: 1400px; }
 .table th, .table td { padding: 12px 12px; border-bottom: 1px solid var(--border); font-size: 13px; }
 .table th { text-align: left; color: var(--muted); font-weight: 700; }
 .table tbody tr { transition: background 0.2s ease; }
