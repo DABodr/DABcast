@@ -42,6 +42,7 @@ export class AppState {
 
     this.muxRunning = false;
     this.watchdogTimer = null;
+    this.metadataTimer = null;
     this.serviceRuntime = new Map();
 
     this._initRuntime();
@@ -69,7 +70,10 @@ export class AppState {
         lastOkMainMs: 0,
         lastOkBackupMs: 0,
         lastSwitchMs: 0,
-        failuresSinceMs: 0
+        failuresSinceMs: 0,
+        lastMetaUpdateMs: 0,
+        currentDls: '',
+        currentSlsUrl: ''
       });
     }
   }
@@ -137,6 +141,7 @@ export class AppState {
       // kept editable (like DabPlatform) - but you can still lock it later if you want
       if (Number.isInteger(patch.audio.sampleRateHz)) next.audio.sampleRateHz = patch.audio.sampleRateHz;
       if (Number.isInteger(patch.audio.channels)) next.audio.channels = patch.audio.channels;
+      if (typeof patch.audio.codec === 'string') next.audio.codec = patch.audio.codec;
     }
 
     if (patch.metadata) {
@@ -176,6 +181,7 @@ export class AppState {
       if (patch.audio) {
         if (Number.isInteger(patch.audio.sampleRateHz)) next.audio.sampleRateHz = patch.audio.sampleRateHz;
         if (Number.isInteger(patch.audio.channels)) next.audio.channels = patch.audio.channels;
+        if (typeof patch.audio.codec === 'string') next.audio.codec = patch.audio.codec;
       }
 
       if (patch.input) {
@@ -184,13 +190,6 @@ export class AppState {
         if (Number.isInteger(patch.input.zmqPrebuffering)) next.input.zmqPrebuffering = patch.input.zmqPrebuffering;
       }
 
-      if (patch.network?.ediOutputTcp?.port) {
-        const p = Number(patch.network.ediOutputTcp.port);
-        if (!Number.isInteger(p) || p < 1024 || p > 65535) {
-          throw new Error('Invalid EDI input port');
-        }
-        next.network.ediOutputTcp.port = p;
-      }
     }
 
     this.preset.services[idx] = next;
@@ -232,14 +231,15 @@ export class AppState {
       audio: {
         channels: 2,
         sampleRateHz: 48000,
-        gainDb: typeof svc.audio?.gainDb === 'number' ? svc.audio.gainDb : 0
+        gainDb: typeof svc.audio?.gainDb === 'number' ? svc.audio.gainDb : 0,
+        codec: svc.audio?.codec || 'HE-AAC v1 (SBR)'
       },
       pad: {
         enabled: true,
         fifoName: id.toUpperCase(),
         dlsFile: `${id.toUpperCase()}.dls`,
         slideDir: 'slide',
-        motDir: `./data/mot/${id.toUpperCase()}`,
+        motDir: `mot/${id.toUpperCase()}`,
         sls: { enabled: true, logoPath: null }
       },
       network: {
@@ -277,7 +277,10 @@ export class AppState {
       lastOkMainMs: 0,
       lastOkBackupMs: 0,
       lastSwitchMs: 0,
-      failuresSinceMs: 0
+      failuresSinceMs: 0,
+      lastMetaUpdateMs: 0,
+      currentDls: '',
+      currentSlsUrl: ''
     });
     this._savePreset();
     return newSvc;
@@ -297,6 +300,179 @@ export class AppState {
     const ports = this.preset.services.map((s) => s.network.ediOutputTcp.port);
     const max = ports.length ? Math.max(...ports) : 9000;
     return max + 1;
+  }
+
+  _resolveMotDir(svc) {
+    const fifoName = svc.pad?.fifoName || svc.identity?.ps8 || svc.id;
+    const motDir = svc.pad?.motDir || `mot/${fifoName}`;
+    if (path.isAbsolute(motDir)) return motDir;
+    const cleaned = motDir.replace(/^[./]*/, '');
+    if (cleaned.startsWith('data/mot/')) {
+      return path.resolve(this.dataDir, cleaned.slice('data/'.length));
+    }
+    if (cleaned.startsWith('mot/')) {
+      return path.resolve(this.dataDir, cleaned);
+    }
+    return path.resolve(this.dataDir, 'mot', cleaned);
+  }
+
+  _getMtaPath(svc) {
+    const pi = (svc.identity?.pi || svc.id || 'service').toUpperCase();
+    return path.resolve(this.runtimeDir, `${pi}.mta`);
+  }
+
+  _extractXmlValue(xml, key) {
+    if (!xml || !key) return '';
+    const escKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp(`<${escKey}>(?:<!\\[CDATA\\[)?([^<]*)(?:\\]\\]>)?<\\/${escKey}>`, 'i');
+    const match = xml.match(re);
+    return match ? String(match[1] || '').trim() : '';
+  }
+
+  async _fetchText(url, timeoutMs = 2500) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, { signal: ctrl.signal });
+      if (!res.ok) return '';
+      return await res.text();
+    } catch {
+      return '';
+    } finally {
+      clearTimeout(t);
+    }
+  }
+
+  async _downloadImage(url, destPath, timeoutMs = 5000) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, { signal: ctrl.signal });
+      if (!res.ok) return false;
+      const arr = await res.arrayBuffer();
+      fs.writeFileSync(destPath, Buffer.from(arr));
+      return true;
+    } catch {
+      return false;
+    } finally {
+      clearTimeout(t);
+    }
+  }
+
+  _getCodecArgs(codec) {
+    const label = String(codec || 'HE-AAC v1 (SBR)').toUpperCase();
+    if (label.includes('AAC-LC')) return [];
+    if (label.includes('V2') || label.includes('PS')) return ['--sbr', '--ps'];
+    return ['--sbr'];
+  }
+
+  _startMetadataLoop() {
+    if (this.metadataTimer) return;
+    this.metadataTimer = setInterval(() => {
+      this._updateMetadata().catch((err) => {
+        this.logger.line('metadata', `update error: ${String(err?.message || err)}`);
+      });
+    }, 1000);
+  }
+
+  _stopMetadataLoop() {
+    if (this.metadataTimer) {
+      clearInterval(this.metadataTimer);
+      this.metadataTimer = null;
+    }
+  }
+
+  async _updateMetadata() {
+    if (!this.muxRunning) return;
+    const now = Date.now();
+    for (const svc of this.preset.services.filter((s) => s.enabled)) {
+      const rt = this.serviceRuntime.get(svc.id);
+      if (!rt) continue;
+      const intervalSec = Number(svc.metadata?.intervalSec ?? 10);
+      const intervalMs = Math.max(1, intervalSec) * 1000;
+      if (rt.lastMetaUpdateMs && now - rt.lastMetaUpdateMs < intervalMs) continue;
+      rt.lastMetaUpdateMs = now;
+      await this._updateServiceMetadata(svc, rt);
+    }
+  }
+
+  async _updateServiceMetadata(svc, rt) {
+    const mode = String(svc.metadata?.mode || 'NONE').toUpperCase();
+    if (mode === 'NONE') return;
+
+    const motDirAbs = this._resolveMotDir(svc);
+    const dlsPath = path.resolve(motDirAbs, svc.pad.dlsFile);
+    const slideDir = path.resolve(motDirAbs, svc.pad.slideDir || 'slide');
+    ensureDir(motDirAbs);
+    ensureDir(slideDir);
+
+    let dlsValue = '';
+    let slsUrl = '';
+
+    if (mode === 'STREAM') {
+      const mtaPath = this._getMtaPath(svc);
+      if (fs.existsSync(mtaPath)) {
+        const line = fs.readFileSync(mtaPath, 'utf8').split('\n')[0] || '';
+        dlsValue = line.trim();
+      }
+      if (!dlsValue) dlsValue = svc.metadata?.defaultDls || '';
+    } else if (mode === 'FILE') {
+      const src = String(svc.metadata?.url || '');
+      if (src.startsWith('http://') || src.startsWith('https://')) {
+        dlsValue = (await this._fetchText(src)).trim();
+      } else if (src) {
+        if (fs.existsSync(src)) {
+          dlsValue = fs.readFileSync(src, 'utf8').split('\n')[0]?.trim() || '';
+        }
+      }
+      if (!dlsValue) dlsValue = svc.metadata?.defaultDls || '';
+    } else if (mode === 'JSON') {
+      const url = String(svc.metadata?.url || '');
+      if (url) {
+        const text = await this._fetchText(url);
+        if (text) {
+          try {
+            const data = JSON.parse(text);
+            const artistKey = svc.metadata?.artistKey || 'artist';
+            const titleKey = svc.metadata?.titleKey || 'title';
+            const slsKey = svc.metadata?.slsKey || 'cover';
+            const artist = data?.[artistKey] ? String(data[artistKey]).trim() : '';
+            const title = data?.[titleKey] ? String(data[titleKey]).trim() : '';
+            dlsValue = [artist, title].filter(Boolean).join(' - ');
+            slsUrl = data?.[slsKey] ? String(data[slsKey]).trim() : '';
+          } catch (err) {
+            this.logger.line('metadata', `json parse failed (${svc.id}): ${String(err?.message || err)}`);
+          }
+        }
+      }
+      if (!dlsValue) dlsValue = svc.metadata?.defaultDls || '';
+    } else if (mode === 'XML') {
+      const url = String(svc.metadata?.url || '');
+      const xml = url ? await this._fetchText(url) : '';
+      if (xml) {
+        const artistKey = svc.metadata?.artistKey || 'artist';
+        const titleKey = svc.metadata?.titleKey || 'title';
+        const slsKey = svc.metadata?.slsKey || 'cover';
+        const artist = this._extractXmlValue(xml, artistKey);
+        const title = this._extractXmlValue(xml, titleKey);
+        dlsValue = [artist, title].filter(Boolean).join(' - ');
+        slsUrl = this._extractXmlValue(xml, slsKey);
+      }
+      if (!dlsValue) dlsValue = svc.metadata?.defaultDls || '';
+    }
+
+    if (dlsValue && dlsValue !== rt.currentDls) {
+      fs.writeFileSync(dlsPath, dlsValue, 'utf8');
+      rt.currentDls = dlsValue;
+    }
+
+    if (slsUrl && slsUrl !== rt.currentSlsUrl) {
+      const extMatch = slsUrl.match(/\.(jpe?g|png|webp)(\?.*)?$/i);
+      const ext = extMatch ? extMatch[1].toLowerCase() : 'jpg';
+      const destPath = path.resolve(slideDir, `cover.${ext}`);
+      const ok = await this._downloadImage(slsUrl, destPath);
+      if (ok) rt.currentSlsUrl = slsUrl;
+    }
   }
 
   async startMux() {
@@ -325,12 +501,14 @@ export class AppState {
 
     this.muxRunning = true;
     this._startWatchdog();
+    this._startMetadataLoop();
   }
 
   async stopMux() {
     if (!this.muxRunning) return;
 
     this._stopWatchdog();
+    this._stopMetadataLoop();
 
     await this.pm.stop('mux:odr-dabmux');
 
@@ -343,10 +521,12 @@ export class AppState {
   }
 
   async _startService(svc) {
-    const motDirAbs = path.resolve(process.cwd(), svc.pad.motDir);
+    const motDirAbs = this._resolveMotDir(svc);
     const fifoPath = path.resolve(motDirAbs, svc.pad.fifoName);
+    const mtaPath = this._getMtaPath(svc);
 
     ensureDir(motDirAbs);
+    ensureDir(path.dirname(mtaPath));
 
     // create fifo if missing
     if (!safeExists(fifoPath)) {
@@ -367,6 +547,7 @@ export class AppState {
     if (rt) rt.status = 'STARTING';
 
     const activeUri = rt?.activeUri || svc.input.uri;
+    const codecArgs = this._getCodecArgs(svc.audio?.codec);
     const args = [
       '-v',
       activeUri,
@@ -375,7 +556,7 @@ export class AppState {
       String(svc.input.encoderBufferMs ?? 200),
       '-L',
       '--audio-resampler=samplerate',
-      '--ps',
+      ...codecArgs,
       '-c',
       String(svc.audio.channels ?? 2),
       '-p',
@@ -390,6 +571,8 @@ export class AppState {
       '60',
       '-o',
       `tcp://localhost:${svc.network.ediOutputTcp.port}`,
+      '-w',
+      mtaPath,
       '-P',
       svc.pad.fifoName
     ];
