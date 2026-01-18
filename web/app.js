@@ -13,6 +13,21 @@ let STATE = null;
 let editingId = null;
 let LOGS_TEXT = '';
 
+function estimateCu(bitrateKbps, protectionLevel = 3) {
+  const br = Number(bitrateKbps) || 0;
+  const multMap = { 1: 1.45, 2: 1.25, 3: 1.10, 4: 1.00 };
+  const mult = multMap[Number(protectionLevel)] ?? multMap[3];
+  return Math.max(0, Math.round(Math.round(br * 0.75) * mult));
+}
+
+function updateCuPreview() {
+  const bitrate = Number($('#f_bitrate')?.value || 0);
+  const protection = Number($('#f_prot')?.value || 3);
+  const cu = estimateCu(bitrate, protection);
+  const cuEl = $('#f_cu');
+  if (cuEl) cuEl.value = String(cu);
+}
+
 async function api(path, opts) {
   const res = await fetch(path, {
     headers: { 'Content-Type': 'application/json' },
@@ -134,7 +149,7 @@ function openDialogFor(service) {
 
   $('#f_sr').value = String(service?.audio?.sampleRateHz ?? 48000);
   $('#f_ch').value = String(service?.audio?.channels ?? 2);
-  $('#f_cu').value = String(service?.cu ?? '');
+  $('#f_cu').value = String(service?.cu ?? estimateCu($('#f_bitrate').value, $('#f_prot').value));
 
   $('#f_zbuf').value = service?.input?.zmqBuffer ?? 96;
   $('#f_zpre').value = service?.input?.zmqPrebuffering ?? 48;
@@ -330,6 +345,11 @@ document.querySelectorAll('.logs-tabs .tab').forEach((btn) => {
   });
 });
 
+['f_bitrate', 'f_prot'].forEach((id) => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('change', updateCuPreview);
+});
+
 document.querySelectorAll('[data-action="svc-cancel"]').forEach((btn) => {
   btn.addEventListener('click', () => dlg.close());
 });
@@ -414,6 +434,18 @@ svcTableBody.addEventListener('click', async (e) => {
 
 $('#svcForm').addEventListener('submit', async (e) => {
   e.preventDefault();
+
+  const missing = [];
+  if (!$('#f_ps8').value.trim()) missing.push('PS8');
+  if (!$('#f_pi').value.trim()) missing.push('PI');
+  if (!$('#f_lang').value.trim()) missing.push('Language');
+  const piValue = $('#f_pi').value.trim();
+  if (piValue && !/^[0-9a-fA-F]{4}$/.test(piValue)) {
+    return alert('PI invalide (4 hexadécimaux requis).');
+  }
+  if (missing.length) {
+    return alert(`Champs obligatoires: ${missing.join(', ')}`);
+  }
 
   const payload = {
     identity: {
