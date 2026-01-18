@@ -185,6 +185,7 @@ function openDialogFor(service) {
 
   $('#f_wd').value = service?.watchdog?.enabled ? '1' : '0';
   $('#f_thresh').value = service?.watchdog?.silenceThresholdSec ?? 10;
+  $('#f_warn').value = service?.watchdog?.warningThresholdSec ?? Math.max(1, Math.floor((service?.watchdog?.silenceThresholdSec ?? 10) / 2));
   $('#f_return').value = service?.watchdog?.returnToMainAfterSec ?? 60;
   $('#f_switch').value = service?.watchdog?.switchToBackupOnSilence ? '1' : '0';
 
@@ -552,6 +553,7 @@ $('#svcForm').addEventListener('submit', async (e) => {
     watchdog: {
       enabled: $('#f_wd').value === '1',
       silenceThresholdSec: Number($('#f_thresh').value || 10),
+      warningThresholdSec: Number($('#f_warn').value || 0),
       switchToBackupOnSilence: $('#f_switch').value === '1',
       returnToMainAfterSec: Number($('#f_return').value || 60)
     },

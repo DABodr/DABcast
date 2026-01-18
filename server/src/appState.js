@@ -151,6 +151,7 @@ export class AppState {
     if (patch.watchdog) {
       if (typeof patch.watchdog.enabled === 'boolean') next.watchdog.enabled = patch.watchdog.enabled;
       if (Number.isInteger(patch.watchdog.silenceThresholdSec)) next.watchdog.silenceThresholdSec = patch.watchdog.silenceThresholdSec;
+      if (Number.isInteger(patch.watchdog.warningThresholdSec)) next.watchdog.warningThresholdSec = patch.watchdog.warningThresholdSec;
       if (typeof patch.watchdog.switchToBackupOnSilence === 'boolean') next.watchdog.switchToBackupOnSilence = patch.watchdog.switchToBackupOnSilence;
       if (Number.isInteger(patch.watchdog.returnToMainAfterSec)) next.watchdog.returnToMainAfterSec = patch.watchdog.returnToMainAfterSec;
     }
@@ -252,6 +253,7 @@ export class AppState {
       watchdog: {
         enabled: true,
         silenceThresholdSec: 10,
+        warningThresholdSec: 5,
         switchToBackupOnSilence: true,
         returnToMainAfterSec: 60
       },
@@ -695,7 +697,7 @@ export class AppState {
         if (!rt.failuresSinceMs) rt.failuresSinceMs = nowMs();
         if (!rt.warningSinceMs) rt.warningSinceMs = nowMs();
 
-        const warnSec = Math.max(1, Math.min(2, Math.floor((svc.watchdog.silenceThresholdSec ?? 10) / 2)));
+        const warnSec = Math.max(1, Number(svc.watchdog.warningThresholdSec ?? Math.floor((svc.watchdog.silenceThresholdSec ?? 10) / 2)));
         if (nowMs() - rt.warningSinceMs >= warnSec * 1000 && rt.status !== 'WARNING') {
           rt.status = 'WARNING';
         }
