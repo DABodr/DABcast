@@ -186,5 +186,17 @@ input:focus, select:focus {
 }
 .span2 { grid-column: span 2; }
 .modal-actions { display:flex; justify-content: space-between; align-items:center; gap: 10px; margin-top: 14px; }
-.logs { height: 60vh; overflow:auto; background: #0b1224; border: 1px solid var(--border); border-radius: 14px; padding: 12px; }
+.logs-tabs { margin-top: 12px; }
+.logs {
+  height: 60vh;
+  overflow:auto;
+  background: #0b1224;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px;
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}
 .modal-logs { width: min(1000px, calc(100vw - 20px)); }

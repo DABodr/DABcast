@@ -7,9 +7,11 @@ const dlgMux = $('#dlgMux');
 
 const TAB_ORDER = ['general','audio','metadata','triggers'];
 let activeTab = 'general';
+let activeLogTab = 'all';
 
 let STATE = null;
 let editingId = null;
+let LOGS_TEXT = '';
 
 async function api(path, opts) {
   const res = await fetch(path, {
@@ -224,8 +226,43 @@ async function stop() {
 
 async function showLogs() {
   const text = await api('/api/logs');
-  $('#logsPre').textContent = text;
+  LOGS_TEXT = String(text || '');
+  renderLogs();
   dlgLogs.showModal();
+}
+
+function logLineScope(line) {
+  const match = line.match(/^\[[^\]]+\]\s+\[([^\]]+)\]\s/);
+  return match ? match[1] : '';
+}
+
+function filterLogsByTab(tab) {
+  if (!LOGS_TEXT) return '';
+  if (tab === 'all') return LOGS_TEXT;
+
+  const lines = LOGS_TEXT.split('\n');
+  if (tab === 'dabmux') {
+    return lines.filter((line) => {
+      const scope = logLineScope(line);
+      return scope === 'mux' || scope.startsWith('mux:odr-dabmux');
+    }).join('\n');
+  }
+
+  if (tab === 'audio') {
+    return lines.filter((line) => {
+      const scope = logLineScope(line);
+      return scope.includes(':audioenc') || scope.includes(':padenc');
+    }).join('\n');
+  }
+
+  return LOGS_TEXT;
+}
+
+function renderLogs() {
+  document.querySelectorAll('.logs-tabs .tab').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.logtab === activeLogTab);
+  });
+  $('#logsPre').textContent = filterLogsByTab(activeLogTab);
 }
 
 function openMuxDialog() {
@@ -284,6 +321,13 @@ $('#btnStop').addEventListener('click', stop);
 $('#btnLogs').addEventListener('click', showLogs);
 $('#btnMux').addEventListener('click', openMuxDialog);
 $('#btnAdd').addEventListener('click', () => openDialogFor(null));
+
+document.querySelectorAll('.logs-tabs .tab').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    activeLogTab = btn.dataset.logtab || 'all';
+    renderLogs();
+  });
+});
 
 // service tabs + wizard buttons
 document.querySelectorAll('#dlgService .tab').forEach((b) => {

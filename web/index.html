@@ -298,6 +298,11 @@
         </div>
         <button class="icon" value="cancel" aria-label="Fermer">✕</button>
       </div>
+      <div class="tabs logs-tabs" role="tablist" aria-label="Logs tabs">
+        <button type="button" class="tab active" data-logtab="all">Tous</button>
+        <button type="button" class="tab" data-logtab="dabmux">odr-dabmux</button>
+        <button type="button" class="tab" data-logtab="audio">odr-audioenc / odr-padenc</button>
+      </div>
       <pre id="logsPre" class="logs"></pre>
       <div class="modal-actions">
         <button value="cancel" class="btn">Close</button>
