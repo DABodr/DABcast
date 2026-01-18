@@ -419,6 +419,57 @@ async function clearLogo() {
 $('#btnUploadLogo').addEventListener('click', () => uploadLogo().catch((e) => alert(e.message || String(e))));
 $('#btnClearLogo').addEventListener('click', () => clearLogo().catch((e) => alert(e.message || String(e))));
 
+async function testDlsUrl() {
+  const statusEl = $('#dlsTestStatus');
+  if (statusEl) statusEl.textContent = 'Test...';
+  const url = $('#f_meta_url').value.trim();
+  if (!url) {
+    if (statusEl) statusEl.textContent = 'URL manquante';
+    return;
+  }
+  try {
+    const res = await api('/api/metadata/test/dls', {
+      method: 'POST',
+      body: JSON.stringify({ url })
+    });
+    if (statusEl) statusEl.textContent = res?.ok ? 'OK' : 'Échec';
+    if (res?.text) alert(res.text);
+  } catch (err) {
+    if (statusEl) statusEl.textContent = 'Erreur';
+    alert(err.message || String(err));
+  }
+}
+
+async function testSlsUrl() {
+  const statusEl = $('#slsTestStatus');
+  if (statusEl) statusEl.textContent = 'Test...';
+  const url = $('#f_sls_url').value.trim();
+  if (!url) {
+    if (statusEl) statusEl.textContent = 'URL manquante';
+    return;
+  }
+  try {
+    const res = await api('/api/metadata/test/sls', {
+      method: 'POST',
+      body: JSON.stringify({ url })
+    });
+    if (statusEl) statusEl.textContent = res?.ok ? 'OK' : 'Échec';
+    if (res?.dataUrl) {
+      const img = $('#slsImg');
+      if (img) {
+        img.src = res.dataUrl;
+        img.style.display = '';
+      }
+    }
+  } catch (err) {
+    if (statusEl) statusEl.textContent = 'Erreur';
+    alert(err.message || String(err));
+  }
+}
+
+$('#btnTestDls').addEventListener('click', () => testDlsUrl().catch((e) => alert(e.message || String(e))));
+$('#btnTestSls').addEventListener('click', () => testSlsUrl().catch((e) => alert(e.message || String(e))));
+
 svcTableBody.addEventListener('click', async (e) => {
   const btn = e.target.closest('button');
   if (!btn) return;

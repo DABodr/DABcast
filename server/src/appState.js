@@ -363,6 +363,31 @@ export class AppState {
     }
   }
 
+  async testDlsUrl(url, timeoutMs = 2500) {
+    if (!url) return { ok: false, text: '' };
+    const text = await this._fetchText(url, timeoutMs);
+    const line = text.split('\n')[0]?.trim() || '';
+    return { ok: Boolean(line), text: line };
+  }
+
+  async testSlsUrl(url, timeoutMs = 5000) {
+    if (!url) return { ok: false, dataUrl: '' };
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, { signal: ctrl.signal });
+      if (!res.ok) return { ok: false, dataUrl: '' };
+      const mime = res.headers.get('content-type') || 'image/jpeg';
+      const arr = await res.arrayBuffer();
+      const b64 = Buffer.from(arr).toString('base64');
+      return { ok: true, dataUrl: `data:${mime};base64,${b64}` };
+    } catch {
+      return { ok: false, dataUrl: '' };
+    } finally {
+      clearTimeout(t);
+    }
+  }
+
   _getCodecArgs(codec) {
     const label = String(codec || 'HE-AAC v1 (SBR)').toUpperCase();
     if (label.includes('AAC-LC')) return [];
