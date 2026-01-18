@@ -184,13 +184,6 @@ export class AppState {
         if (Number.isInteger(patch.input.zmqPrebuffering)) next.input.zmqPrebuffering = patch.input.zmqPrebuffering;
       }
 
-      if (patch.network?.ediOutputTcp?.port) {
-        const p = Number(patch.network.ediOutputTcp.port);
-        if (!Number.isInteger(p) || p < 1024 || p > 65535) {
-          throw new Error('Invalid EDI input port');
-        }
-        next.network.ediOutputTcp.port = p;
-      }
     }
 
     this.preset.services[idx] = next;
@@ -239,7 +232,7 @@ export class AppState {
         fifoName: id.toUpperCase(),
         dlsFile: `${id.toUpperCase()}.dls`,
         slideDir: 'slide',
-        motDir: `./data/mot/${id.toUpperCase()}`,
+        motDir: `mot/${id.toUpperCase()}`,
         sls: { enabled: true, logoPath: null }
       },
       network: {
@@ -299,6 +292,20 @@ export class AppState {
     return max + 1;
   }
 
+  _resolveMotDir(svc) {
+    const fifoName = svc.pad?.fifoName || svc.identity?.ps8 || svc.id;
+    const motDir = svc.pad?.motDir || `mot/${fifoName}`;
+    if (path.isAbsolute(motDir)) return motDir;
+    const cleaned = motDir.replace(/^[./]*/, '');
+    if (cleaned.startsWith('data/mot/')) {
+      return path.resolve(this.dataDir, cleaned.slice('data/'.length));
+    }
+    if (cleaned.startsWith('mot/')) {
+      return path.resolve(this.dataDir, cleaned);
+    }
+    return path.resolve(this.dataDir, 'mot', cleaned);
+  }
+
   async startMux() {
     if (this.muxRunning) return;
 
@@ -343,7 +350,7 @@ export class AppState {
   }
 
   async _startService(svc) {
-    const motDirAbs = path.resolve(process.cwd(), svc.pad.motDir);
+    const motDirAbs = this._resolveMotDir(svc);
     const fifoPath = path.resolve(motDirAbs, svc.pad.fifoName);
 
     ensureDir(motDirAbs);
