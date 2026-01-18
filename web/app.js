@@ -96,11 +96,6 @@ function render() {
   for (const svc of services) {
     const tr = document.createElement('tr');
     const status = svc.runtime?.status || 'UNKNOWN';
-    const activeUri = svc.runtime?.activeUri || '';
-    const mainUri = svc.input?.uri || '';
-    const backupUri = svc.input?.backupUri || '';
-    const activeIsMain = activeUri && mainUri && activeUri === mainUri;
-    const activeIsBackup = activeUri && backupUri && activeUri === backupUri;
     const dlsPreview = svc.runtime?.currentDls || svc.metadata?.defaultDls || '';
     const slsPreview = svc.runtime?.currentSlsUrl || svc.metadata?.slsUrl || '';
 

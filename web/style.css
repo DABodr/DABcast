@@ -68,7 +68,7 @@ body {
 .onair.off { color: var(--muted); }
 @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
 
-.main { padding: 24px 18px 40px; max-width: 1240px; margin: 0 auto; }
+.main { padding: 24px 18px 40px; max-width: 100%; margin: 0 auto; }
 .card {
   background: var(--card-soft);
   border: 1px solid var(--border);
