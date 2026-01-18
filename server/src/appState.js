@@ -262,8 +262,12 @@ export class AppState {
         titleKey: 'title',
         slsKey: 'cover',
         defaultDls: '',
+        slsUrl: null,
         slsBackColor: '',
-        slsFontColor: ''
+        slsFontColor: '',
+        defaultDlsAllowed: true,
+        defaultSlsAllowed: true,
+        dlsIncluded: false
       },
       ui: {
         order: this.preset.services.length + 1
@@ -366,6 +370,23 @@ export class AppState {
     return ['--sbr'];
   }
 
+  _copyDefaultSls(slideDir) {
+    const candidates = [
+      path.resolve(slideDir, 'logo.png'),
+      path.resolve(slideDir, 'logo.jpg'),
+      path.resolve(slideDir, 'logo.webp')
+    ];
+    const logo = candidates.find((p) => fs.existsSync(p));
+    if (!logo) return;
+    const ext = path.extname(logo) || '.jpg';
+    const dest = path.resolve(slideDir, `cover${ext}`);
+    try {
+      fs.copyFileSync(logo, dest);
+    } catch {
+      // ignore copy errors
+    }
+  }
+
   _startMetadataLoop() {
     if (this.metadataTimer) return;
     this.metadataTimer = setInterval(() => {
@@ -408,6 +429,8 @@ export class AppState {
 
     let dlsValue = '';
     let slsUrl = '';
+    const defaultDlsAllowed = svc.metadata?.defaultDlsAllowed !== false;
+    const defaultSlsAllowed = svc.metadata?.defaultSlsAllowed !== false;
 
     if (mode === 'STREAM') {
       const mtaPath = this._getMtaPath(svc);
@@ -415,7 +438,7 @@ export class AppState {
         const line = fs.readFileSync(mtaPath, 'utf8').split('\n')[0] || '';
         dlsValue = line.trim();
       }
-      if (!dlsValue) dlsValue = svc.metadata?.defaultDls || '';
+      if (!dlsValue && defaultDlsAllowed) dlsValue = svc.metadata?.defaultDls || '';
     } else if (mode === 'FILE') {
       const src = String(svc.metadata?.url || '');
       if (src.startsWith('http://') || src.startsWith('https://')) {
@@ -425,7 +448,7 @@ export class AppState {
           dlsValue = fs.readFileSync(src, 'utf8').split('\n')[0]?.trim() || '';
         }
       }
-      if (!dlsValue) dlsValue = svc.metadata?.defaultDls || '';
+      if (!dlsValue && defaultDlsAllowed) dlsValue = svc.metadata?.defaultDls || '';
     } else if (mode === 'JSON') {
       const url = String(svc.metadata?.url || '');
       if (url) {
@@ -445,7 +468,7 @@ export class AppState {
           }
         }
       }
-      if (!dlsValue) dlsValue = svc.metadata?.defaultDls || '';
+      if (!dlsValue && defaultDlsAllowed) dlsValue = svc.metadata?.defaultDls || '';
     } else if (mode === 'XML') {
       const url = String(svc.metadata?.url || '');
       const xml = url ? await this._fetchText(url) : '';
@@ -458,7 +481,11 @@ export class AppState {
         dlsValue = [artist, title].filter(Boolean).join(' - ');
         slsUrl = this._extractXmlValue(xml, slsKey);
       }
-      if (!dlsValue) dlsValue = svc.metadata?.defaultDls || '';
+      if (!dlsValue && defaultDlsAllowed) dlsValue = svc.metadata?.defaultDls || '';
+    }
+
+    if (svc.metadata?.slsUrl) {
+      slsUrl = String(svc.metadata.slsUrl).trim();
     }
 
     if (dlsValue && dlsValue !== rt.currentDls) {
@@ -472,6 +499,8 @@ export class AppState {
       const destPath = path.resolve(slideDir, `cover.${ext}`);
       const ok = await this._downloadImage(slsUrl, destPath);
       if (ok) rt.currentSlsUrl = slsUrl;
+    } else if (!slsUrl && defaultSlsAllowed) {
+      this._copyDefaultSls(slideDir);
     }
   }
 

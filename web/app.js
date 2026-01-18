@@ -176,8 +176,12 @@ function openDialogFor(service) {
   $('#f_meta_title').value = service?.metadata?.titleKey || 'title';
   $('#f_meta_sls').value = service?.metadata?.slsKey || 'cover';
   $('#f_default_dls').value = service?.metadata?.defaultDls || '';
+  $('#f_sls_url').value = service?.metadata?.slsUrl || '';
   $('#f_sls_back').value = service?.metadata?.slsBackColor || '';
   $('#f_sls_font').value = service?.metadata?.slsFontColor || '';
+  $('#f_dls_allowed').value = service?.metadata?.defaultDlsAllowed ? '1' : '0';
+  $('#f_sls_allowed').value = service?.metadata?.defaultSlsAllowed ? '1' : '0';
+  $('#f_dls_included').value = service?.metadata?.dlsIncluded ? '1' : '0';
 
   // SLS preview (logo)
   const img = $('#slsImg');
@@ -488,8 +492,12 @@ $('#svcForm').addEventListener('submit', async (e) => {
       titleKey: $('#f_meta_title').value.trim() || null,
       slsKey: $('#f_meta_sls').value.trim() || null,
       defaultDls: $('#f_default_dls').value.trim() || null,
+      slsUrl: $('#f_sls_url').value.trim() || null,
       slsBackColor: $('#f_sls_back').value.trim() || null,
-      slsFontColor: $('#f_sls_font').value.trim() || null
+      slsFontColor: $('#f_sls_font').value.trim() || null,
+      defaultDlsAllowed: $('#f_dls_allowed').value === '1',
+      defaultSlsAllowed: $('#f_sls_allowed').value === '1',
+      dlsIncluded: $('#f_dls_included').value === '1'
     }
   };
 
