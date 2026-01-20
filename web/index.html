@@ -33,7 +33,11 @@
           <div class="card-hint">Ajouter / modifier via la fenêtre. Certains champs sont verrouillés quand c'est ON AIR.</div>
           <div class="card-hint" id="capHint"></div>
         </div>
-        <div>
+        <div class="row">
+          <button id="btnExportAll" class="btn btn-mini">Exporter config</button>
+          <button id="btnImportAll" class="btn btn-mini">Importer config</button>
+          <button id="btnExportService" class="btn btn-mini">Exporter service</button>
+          <button id="btnImportService" class="btn btn-mini">Importer service</button>
           <button id="btnAdd" class="btn">+ Add service</button>
         </div>
       </div>
@@ -65,6 +69,9 @@
       </div>
     </div>
   </main>
+
+  <input type="file" id="fileImportAll" accept="application/json" hidden />
+  <input type="file" id="fileImportService" accept="application/json" hidden />
 
   <dialog id="dlgService" class="modal">
     <form method="dialog" class="modal-body modal-service" id="svcForm">

@@ -117,6 +117,58 @@ export class AppState {
     }).filter(Boolean);
   }
 
+  setPreset(preset) {
+    if (this.muxRunning) throw new Error('Cannot replace preset while ON AIR');
+    if (!preset || !Array.isArray(preset.services)) {
+      throw new Error('Invalid preset payload');
+    }
+    const next = structuredClone(preset);
+    next.id = String(next.id || `import_${nanoid(6)}`);
+    next.name = String(next.name || next.id);
+    next.services = next.services.map((svc, idx) => {
+      const s = structuredClone(svc || {});
+      if (!s.id) s.id = nanoid(8);
+      s.ui = { ...(s.ui || {}), order: s.ui?.order ?? (idx + 1) };
+      return s;
+    });
+    this.preset = next;
+    this._savePreset();
+    this.serviceRuntime.clear();
+    this._initRuntime();
+  }
+
+  upsertService(service) {
+    if (this.muxRunning) throw new Error('Cannot replace service while ON AIR');
+    if (!service || typeof service !== 'object') {
+      throw new Error('Invalid service payload');
+    }
+    const next = structuredClone(service);
+    if (!next.id) next.id = nanoid(8);
+    next.ui = { ...(next.ui || {}), order: next.ui?.order ?? (this.preset.services.length + 1) };
+
+    const idx = this.preset.services.findIndex((s) => s.id === next.id);
+    if (idx >= 0) {
+      this.preset.services[idx] = next;
+    } else {
+      this.preset.services.push(next);
+    }
+
+    this.serviceRuntime.set(next.id, {
+      status: 'STOPPED',
+      activeUri: next.input?.uri || null,
+      lastOkMainMs: 0,
+      lastOkBackupMs: 0,
+      lastSwitchMs: 0,
+      failuresSinceMs: 0,
+      lastMetaUpdateMs: 0,
+      currentDls: '',
+      currentSlsUrl: '',
+      warningSinceMs: 0
+    });
+    this._savePreset();
+    return next;
+  }
+
   setService(id, patch) {
     const idx = this.preset.services.findIndex((s) => s.id === id);
     if (idx === -1) throw new Error(`Unknown service: ${id}`);

@@ -76,6 +76,51 @@ app.patch('/api/settings', (req, res) => {
   }
 });
 
+app.get('/api/export/full', (req, res) => {
+  res.json({ settings, preset: state.preset });
+});
+
+app.post('/api/import/full', (req, res) => {
+  try {
+    const payload = req.body || {};
+    if (payload.settings) {
+      settings.ensemble = { ...settings.ensemble, ...payload.settings.ensemble };
+      settings.dabmux = { ...settings.dabmux, ...payload.settings.dabmux };
+      if (payload.settings.dabmux?.easyDabOutput) {
+        settings.dabmux.easyDabOutput = { ...settings.dabmux.easyDabOutput, ...payload.settings.dabmux.easyDabOutput };
+      }
+      if (payload.settings.odrBinDir !== undefined) {
+        settings.odrBinDir = payload.settings.odrBinDir;
+        pm.odrBinDir = settings.odrBinDir;
+      }
+      writeJson(settingsPath, settings);
+    }
+    if (payload.preset) {
+      state.setPreset(payload.preset);
+    }
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(400).json({ error: String(e.message || e) });
+  }
+});
+
+app.get('/api/export/service/:id', (req, res) => {
+  const svc = state.preset.services.find((s) => s.id === req.params.id);
+  if (!svc) return res.status(404).json({ error: 'Unknown service' });
+  res.json({ service: svc });
+});
+
+app.post('/api/import/service', (req, res) => {
+  try {
+    const payload = req.body || {};
+    if (!payload.service) throw new Error('Missing service');
+    const svc = state.upsertService(payload.service);
+    res.json({ ok: true, service: svc });
+  } catch (e) {
+    res.status(400).json({ error: String(e.message || e) });
+  }
+});
+
 app.post('/api/services', (req, res) => {
   try {
     const svc = state.addService(req.body || {});

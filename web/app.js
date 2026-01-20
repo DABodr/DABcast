@@ -4,6 +4,8 @@ const svcTableBody = $('#svcTable tbody');
 const dlg = $('#dlgService');
 const dlgLogs = $('#dlgLogs');
 const dlgMux = $('#dlgMux');
+const fileImportAll = $('#fileImportAll');
+const fileImportService = $('#fileImportService');
 
 const TAB_ORDER = ['general','audio','metadata','triggers'];
 let activeTab = 'general';
@@ -59,6 +61,34 @@ function streamDot(active, fallback = false) {
 
 function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
+}
+
+function downloadJson(filename, data) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function readJsonFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const json = JSON.parse(String(reader.result || ''));
+        resolve(json);
+      } catch (err) {
+        reject(err);
+      }
+    };
+    reader.onerror = () => reject(reader.error || new Error('Failed to read file'));
+    reader.readAsText(file);
+  });
 }
 
 function streamDot(isActive, hasUri = true) {
@@ -290,6 +320,30 @@ async function showLogs() {
   LOGS_TEXT = String(text || '');
   renderLogs();
   dlgLogs.showModal();
+}
+
+async function exportAllConfig() {
+  const payload = await api('/api/export/full');
+  const name = payload?.preset?.name ? payload.preset.name.replace(/\s+/g, '_') : 'dabcast';
+  downloadJson(`dabcast_config_${name}.json`, payload);
+}
+
+async function importAllConfig(file) {
+  const payload = await readJsonFile(file);
+  await api('/api/import/full', { method: 'POST', body: JSON.stringify(payload) });
+  await refresh();
+}
+
+async function exportService(id) {
+  const payload = await api(`/api/export/service/${encodeURIComponent(id)}`);
+  const name = payload?.service?.identity?.ps8 || id;
+  downloadJson(`dabcast_service_${name}.json`, payload);
+}
+
+async function importService(file) {
+  const payload = await readJsonFile(file);
+  await api('/api/import/service', { method: 'POST', body: JSON.stringify(payload) });
+  await refresh();
 }
 
 function logLineScope(line) {
@@ -604,6 +658,56 @@ $('#svcForm').addEventListener('submit', async (e) => {
     await refresh();
   } catch (err) {
     alert(err.message || String(err));
+  }
+});
+
+$('#btnExportAll')?.addEventListener('click', async () => {
+  try {
+    await exportAllConfig();
+  } catch (err) {
+    alert(err.message || String(err));
+  }
+});
+
+$('#btnImportAll')?.addEventListener('click', () => {
+  fileImportAll?.click();
+});
+
+$('#btnExportService')?.addEventListener('click', async () => {
+  try {
+    const id = editingId || prompt('ID du service à exporter ?');
+    if (!id) return;
+    await exportService(id);
+  } catch (err) {
+    alert(err.message || String(err));
+  }
+});
+
+$('#btnImportService')?.addEventListener('click', () => {
+  fileImportService?.click();
+});
+
+fileImportAll?.addEventListener('change', async (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  try {
+    await importAllConfig(file);
+  } catch (err) {
+    alert(err.message || String(err));
+  } finally {
+    e.target.value = '';
+  }
+});
+
+fileImportService?.addEventListener('change', async (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  try {
+    await importService(file);
+  } catch (err) {
+    alert(err.message || String(err));
+  } finally {
+    e.target.value = '';
   }
 });
 
