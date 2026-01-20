@@ -75,7 +75,6 @@ export function generateMuxConfig({ settings, preset }) {
     const srv = `srv_${idx + 1}`;
     const sub = `sub_${idx + 1}`;
     lines.push(`    ${comp} {`);
-    lines.push(`        shortlabel "${escapeLabel(svc.identity.ps8)}"`);
     lines.push(`        service ${srv}`);
     lines.push(`        subchannel ${sub}`);
     lines.push('        figtype 0x2');
