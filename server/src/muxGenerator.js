@@ -56,7 +56,8 @@ export function generateMuxConfig({ settings, preset }) {
     const input = `tcp://*:${svc.network.ediOutputTcp.port}`;
     lines.push(`    ${key} {`);
     lines.push('        type dabplus');
-    lines.push(`        inputfile "${input}"`);
+    lines.push('        inputproto "zmq"');
+    lines.push(`        inputuri "${input}"`);
     lines.push(`        zmq-buffer ${svc.input.zmqBuffer ?? 96}`);
     lines.push(`        zmq-prebuffering ${svc.input.zmqPrebuffering ?? 48}`);
     lines.push(`        bitrate ${svc.dab.bitrateKbps}`);
@@ -74,7 +75,6 @@ export function generateMuxConfig({ settings, preset }) {
     const srv = `srv_${idx + 1}`;
     const sub = `sub_${idx + 1}`;
     lines.push(`    ${comp} {`);
-    lines.push(`        label "${escapeLabel(svc.identity.ps16 || svc.identity.ps8)}"`);
     lines.push(`        shortlabel "${escapeLabel(svc.identity.ps8)}"`);
     lines.push(`        service ${srv}`);
     lines.push(`        subchannel ${sub}`);
