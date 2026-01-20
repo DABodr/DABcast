@@ -56,7 +56,7 @@ export function generateMuxConfig({ settings, preset }) {
     const input = `0.0.0.0:${svc.network.ediOutputTcp.port}`;
     lines.push(`    ${key} {`);
     lines.push('        type dabplus');
-    lines.push('        inputproto "tcp"');
+    lines.push('        inputproto "zmq"');
     lines.push(`        inputuri "${input}"`);
     lines.push(`        zmq-buffer ${svc.input.zmqBuffer ?? 96}`);
     lines.push(`        zmq-prebuffering ${svc.input.zmqPrebuffering ?? 48}`);
