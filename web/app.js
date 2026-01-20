@@ -61,6 +61,11 @@ function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
 }
 
+function streamDot(isActive, hasUri = true) {
+  const cls = hasUri ? (isActive ? 'dot ok' : 'dot') : 'dot err';
+  return `<span class="${cls}" aria-hidden="true"></span>`;
+}
+
 function render() {
   if (!STATE) return;
 
@@ -105,6 +110,10 @@ function render() {
     const status = svc.runtime?.status || 'UNKNOWN';
     const dlsPreview = svc.runtime?.currentDls || svc.metadata?.defaultDls || '';
     const slsPreview = svc.runtime?.currentSlsUrl || svc.metadata?.slsUrl || '';
+    const backupUri = svc.input?.backupUri || '';
+    const activeUri = svc.runtime?.activeUri || '';
+    const activeIsMain = Boolean(activeUri && svc.input?.uri && activeUri === svc.input.uri);
+    const activeIsBackup = Boolean(activeUri && backupUri && activeUri === backupUri);
 
     tr.innerHTML = `
       <td>${badge(status)}</td>
@@ -121,8 +130,8 @@ function render() {
       <td>${esc(String(svc.audio?.channels ?? 2))}</td>
       <td>${esc(String((svc.audio?.sampleRateHz ?? 48000) / 1000))} kHz</td>
       <td>${svc.network.ediOutputTcp.port}</td>
-      <td class="muted">${esc(svc.input.uri || '')}</td>
-      <td class="muted">${esc(svc.input.backupUri || '')}</td>
+      <td class="muted"><span class="badge">${streamDot(activeIsMain, Boolean(svc.input?.uri))}</span> ${esc(svc.input.uri || '')}</td>
+      <td class="muted"><span class="badge">${streamDot(activeIsBackup, Boolean(backupUri))}</span> ${esc(backupUri)}</td>
       <td class="muted">${esc(dlsPreview)}</td>
       <td class="muted">${esc(slsPreview)}</td>
       <td class="row-actions">

@@ -606,8 +606,10 @@ export class AppState {
 
     const activeUri = rt?.activeUri || svc.input.uri;
     const codecArgs = this._getCodecArgs(svc.audio?.codec);
+    const isHttpStream = /^https?:\/\//i.test(activeUri || '');
+    const sourceFlag = isHttpStream || svc.input?.mode?.toUpperCase().includes('GST') ? '-G' : '-v';
     const args = [
-      '-v',
+      sourceFlag,
       activeUri,
       '-D',
       '-C',
