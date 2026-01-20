@@ -53,10 +53,11 @@ export function generateMuxConfig({ settings, preset }) {
   lines.push('subchannels {');
   preset.services.forEach((svc, idx) => {
     const key = `sub_${idx + 1}`;
-    const input = `tcp://*:${svc.network.ediOutputTcp.port}`;
+    const input = `0.0.0.0:${svc.network.ediOutputTcp.port}`;
     lines.push(`    ${key} {`);
     lines.push('        type dabplus');
-    lines.push(`        inputfile "${input}"`);
+    lines.push('        inputproto "tcp"');
+    lines.push(`        inputuri "${input}"`);
     lines.push(`        zmq-buffer ${svc.input.zmqBuffer ?? 96}`);
     lines.push(`        zmq-prebuffering ${svc.input.zmqPrebuffering ?? 48}`);
     lines.push(`        bitrate ${svc.dab.bitrateKbps}`);
