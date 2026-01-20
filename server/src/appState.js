@@ -662,61 +662,66 @@ export class AppState {
     this.watchdogTimer = setInterval(async () => {
       if (!this.muxRunning) return;
 
-      for (const svc of this.preset.services.filter((s) => s.enabled && s.watchdog?.enabled)) {
-        const rt = this.serviceRuntime.get(svc.id);
-        if (!rt) continue;
+      try {
+        for (const svc of this.preset.services.filter((s) => s.enabled && s.watchdog?.enabled)) {
+          const rt = this.serviceRuntime.get(svc.id);
+          if (!rt) continue;
+          if (!rt.activeUri) rt.activeUri = svc.input.uri;
 
-        // health check main & backup
-        const okMain = await headOk(svc.input.uri);
-        const okBackup = await headOk(svc.input.backupUri);
+          // health check main & backup
+          const okMain = await headOk(svc.input.uri);
+          const okBackup = await headOk(svc.input.backupUri);
 
-        if (okMain) rt.lastOkMainMs = nowMs();
-        if (okBackup) rt.lastOkBackupMs = nowMs();
+          if (okMain) rt.lastOkMainMs = nowMs();
+          if (okBackup) rt.lastOkBackupMs = nowMs();
 
-        const thresholdMs = (svc.watchdog.silenceThresholdSec ?? 10) * 1000;
+          const thresholdMs = (svc.watchdog.silenceThresholdSec ?? 10) * 1000;
 
-        // determine if active is failing
-        let activeIsMain = false;
-        if (rt.activeUri) {
-          activeIsMain = rt.activeUri === svc.input.uri;
-        }
-        const activeOk = activeIsMain ? okMain : okBackup;
+          // determine if active is failing
+          let activeIsMain = false;
+          if (rt.activeUri) {
+            activeIsMain = rt.activeUri === svc.input.uri;
+          }
+          const activeOk = activeIsMain ? okMain : okBackup;
 
-        if (activeOk) {
-          rt.failuresSinceMs = 0;
-          rt.warningSinceMs = 0;
-          if (rt.status && rt.status !== 'RUNNING') rt.status = 'RUNNING';
-          // try returning to main if on backup
-          if (!activeIsMain && svc.watchdog.returnToMainAfterSec > 0) {
-            const backMs = svc.watchdog.returnToMainAfterSec * 1000;
-            if (nowMs() - (rt.lastSwitchMs || 0) >= backMs && okMain) {
-              await this._switchServiceUri(svc, svc.input.uri);
+          if (activeOk) {
+            rt.failuresSinceMs = 0;
+            rt.warningSinceMs = 0;
+            if (rt.status && rt.status !== 'RUNNING') rt.status = 'RUNNING';
+            // try returning to main if on backup
+            if (!activeIsMain && svc.watchdog.returnToMainAfterSec > 0) {
+              const backMs = svc.watchdog.returnToMainAfterSec * 1000;
+              if (nowMs() - (rt.lastSwitchMs || 0) >= backMs && okMain) {
+                await this._switchServiceUri(svc, svc.input.uri);
+              }
+            }
+            continue;
+          }
+
+          // active failed
+          if (!rt.failuresSinceMs) rt.failuresSinceMs = nowMs();
+          if (!rt.warningSinceMs) rt.warningSinceMs = nowMs();
+
+          const warnSec = Math.max(1, Number(svc.watchdog.warningThresholdSec ?? Math.floor((svc.watchdog.silenceThresholdSec ?? 10) / 2)));
+          if (nowMs() - rt.warningSinceMs >= warnSec * 1000 && rt.status !== 'WARNING') {
+            rt.status = 'WARNING';
+          }
+
+          if (nowMs() - rt.failuresSinceMs >= thresholdMs) {
+            if (svc.watchdog.switchToBackupOnSilence && svc.input.backupUri) {
+              const target = activeIsMain ? svc.input.backupUri : svc.input.uri;
+              const targetOk = activeIsMain ? okBackup : okMain;
+
+              if (targetOk) {
+                await this._switchServiceUri(svc, target);
+                rt.failuresSinceMs = 0;
+                rt.warningSinceMs = 0;
+              }
             }
           }
-          continue;
         }
-
-        // active failed
-        if (!rt.failuresSinceMs) rt.failuresSinceMs = nowMs();
-        if (!rt.warningSinceMs) rt.warningSinceMs = nowMs();
-
-        const warnSec = Math.max(1, Number(svc.watchdog.warningThresholdSec ?? Math.floor((svc.watchdog.silenceThresholdSec ?? 10) / 2)));
-        if (nowMs() - rt.warningSinceMs >= warnSec * 1000 && rt.status !== 'WARNING') {
-          rt.status = 'WARNING';
-        }
-
-        if (nowMs() - rt.failuresSinceMs >= thresholdMs) {
-          if (svc.watchdog.switchToBackupOnSilence && svc.input.backupUri) {
-            const target = activeIsMain ? svc.input.backupUri : svc.input.uri;
-            const targetOk = activeIsMain ? okBackup : okMain;
-
-            if (targetOk) {
-              await this._switchServiceUri(svc, target);
-              rt.failuresSinceMs = 0;
-              rt.warningSinceMs = 0;
-            }
-          }
-        }
+      } catch (err) {
+        this.logger.line('watchdog', `error: ${err?.message || err}`);
       }
     }, 5000);
 
