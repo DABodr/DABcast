@@ -370,6 +370,12 @@ function filterLogsByTab(tab) {
     }).join('\n');
   }
 
+  if (tab === 'proc') {
+    return lines.filter((line) => (
+      line.includes('spawn:') || line.includes('stop:') || line.includes('exit:')
+    )).join('\n');
+  }
+
   return LOGS_TEXT;
 }
 
