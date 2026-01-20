@@ -54,6 +54,11 @@ function badge(status) {
   return `<span class="${cls}">${s}</span>`;
 }
 
+function streamDot(active, fallback = false) {
+  const cls = active ? 'ok' : (fallback ? 'warn' : '');
+  return `<span class="dot ${cls}"></span>`;
+}
+
 function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
 }
@@ -146,6 +151,8 @@ function render() {
         <div class="ps">${esc(svc.identity.ps8)}</div>
         <div class="muted">${esc(svc.identity.ps16 || '')}</div>
       </td>
+      <td>${streamDot(activeIsMain)}</td>
+      <td>${streamDot(activeIsBackup, Boolean(backupUri))}</td>
       <td>${svc.dab.bitrateKbps} kbps</td>
       <td>${svc.cu ?? ''}</td>
       <td>${esc(String(svc.dab.protectionLevel ?? 3))}</td>
