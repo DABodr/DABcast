@@ -676,7 +676,10 @@ export class AppState {
         const thresholdMs = (svc.watchdog.silenceThresholdSec ?? 10) * 1000;
 
         // determine if active is failing
-        const activeIsMain = rt.activeUri === svc.input.uri;
+        let activeIsMain = false;
+        if (rt.activeUri) {
+          activeIsMain = rt.activeUri === svc.input.uri;
+        }
         const activeOk = activeIsMain ? okMain : okBackup;
 
         if (activeOk) {

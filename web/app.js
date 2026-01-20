@@ -71,7 +71,7 @@ function render() {
     : (tx === 'EDI')
       ? `EDI TCP: ${STATE.settings.dabmux.ediTcpListenPort}`
       : 'USRP1';
-  $('#muxSubtitle').textContent = `Preset: ${STATE.preset.id} | TX: ${tx} | ${out}`;
+  $('#muxSubtitle').textContent = `Preset: ${STATE.preset.name} | TX: ${tx} | ${out}`;
 
   // capacity hint (CU)
   const cap = STATE.preset.capacity || { totalCu: 0, maxCu: 864 };
