@@ -53,7 +53,7 @@ export function generateMuxConfig({ settings, preset }) {
   lines.push('subchannels {');
   preset.services.forEach((svc, idx) => {
     const key = `sub_${idx + 1}`;
-    const input = `0.0.0.0:${svc.network.ediOutputTcp.port}`;
+    const input = `tcp://127.0.0.1:${svc.network.ediOutputTcp.port}`;
     lines.push(`    ${key} {`);
     lines.push('        type dabplus');
     lines.push('        inputproto "zmq"');
