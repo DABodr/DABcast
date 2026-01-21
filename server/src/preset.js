@@ -63,7 +63,7 @@ export function makeDemoPreset({ baseMotDir }) {
 
   return {
     presetId: `demo_${nanoid(6)}`,
-    name: "DemoMux",
+    name: "DABcast",
     createdAt: new Date().toISOString(),
     services,
     ui: { order: services.map((s) => s.id) }

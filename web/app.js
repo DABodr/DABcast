@@ -4,12 +4,31 @@ const svcTableBody = $('#svcTable tbody');
 const dlg = $('#dlgService');
 const dlgLogs = $('#dlgLogs');
 const dlgMux = $('#dlgMux');
+const fileImportAll = $('#fileImportAll');
+const fileImportService = $('#fileImportService');
 
 const TAB_ORDER = ['general','audio','metadata','triggers'];
 let activeTab = 'general';
+let activeLogTab = 'all';
 
 let STATE = null;
 let editingId = null;
+let LOGS_TEXT = '';
+
+function estimateCu(bitrateKbps, protectionLevel = 3) {
+  const br = Number(bitrateKbps) || 0;
+  const multMap = { 1: 1.45, 2: 1.25, 3: 1.10, 4: 1.00 };
+  const mult = multMap[Number(protectionLevel)] ?? multMap[3];
+  return Math.max(0, Math.round(Math.round(br * 0.75) * mult));
+}
+
+function updateCuPreview() {
+  const bitrate = Number($('#f_bitrate')?.value || 0);
+  const protection = Number($('#f_prot')?.value || 3);
+  const cu = estimateCu(bitrate, protection);
+  const cuEl = $('#f_cu');
+  if (cuEl) cuEl.value = String(cu);
+}
 
 async function api(path, opts) {
   const res = await fetch(path, {
@@ -29,6 +48,7 @@ function badge(status) {
   const s = (status || 'UNKNOWN').toUpperCase();
   let cls = 'pill';
   if (s.includes('RUN')) cls += ' ok';
+  else if (s.includes('WARN')) cls += ' warn';
   else if (s.includes('START')) cls += ' warn';
   else if (s.includes('STOP')) cls += ' off';
   return `<span class="${cls}">${s}</span>`;
@@ -36,6 +56,50 @@ function badge(status) {
 
 function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
+}
+
+function downloadJson(filename, data) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function readJsonFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const json = JSON.parse(String(reader.result || ''));
+        resolve(json);
+      } catch (err) {
+        reject(err);
+      }
+    };
+    reader.onerror = () => reject(reader.error || new Error('Failed to read file'));
+    reader.readAsText(file);
+  });
+}
+
+function streamDot(isActive, hasUri = true) {
+  const cls = hasUri ? (isActive ? 'dot ok' : 'dot') : 'dot err';
+  return `<span class="${cls}" aria-hidden="true"></span>`;
+}
+
+function normalizeLabel(label) {
+  return String(label || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+function shortLabelMismatch(ps8, ps16) {
+  const shortLabel = normalizeLabel(ps8);
+  const longLabel = normalizeLabel(ps16);
+  if (!shortLabel || !longLabel) return false;
+  return !longLabel.includes(shortLabel);
 }
 
 function render() {
@@ -48,7 +112,7 @@ function render() {
     : (tx === 'EDI')
       ? `EDI TCP: ${STATE.settings.dabmux.ediTcpListenPort}`
       : 'USRP1';
-  $('#muxSubtitle').textContent = `Preset: ${STATE.preset.id} | TX: ${tx} | ${out}`;
+  $('#muxSubtitle').textContent = `Preset: ${STATE.preset.name} | TX: ${tx} | ${out}`;
 
   // capacity hint (CU)
   const cap = STATE.preset.capacity || { totalCu: 0, maxCu: 864 };
@@ -70,22 +134,47 @@ function render() {
   svcTableBody.innerHTML = '';
 
   const services = [...STATE.preset.services].sort((a,b) => (a.ui?.order ?? 0) - (b.ui?.order ?? 0));
+  if (!services.length) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td class="muted" colspan="14">Aucun service trouvé.</td>`;
+    svcTableBody.appendChild(tr);
+    return;
+  }
+
   for (const svc of services) {
     const tr = document.createElement('tr');
     const status = svc.runtime?.status || 'UNKNOWN';
+    const dlsPreview = svc.runtime?.currentDls || svc.metadata?.defaultDls || '';
+    const slsPreview = svc.runtime?.currentSlsUrl || svc.metadata?.slsUrl || '';
+    const backupUri = svc.input?.backupUri || '';
+    const activeUri = svc.runtime?.activeUri || '';
+    const activeIsMain = Boolean(activeUri && svc.input?.uri && activeUri === svc.input.uri);
+    const activeIsBackup = Boolean(activeUri && backupUri && activeUri === backupUri);
+
+    const ps8 = svc.identity.ps8 || '';
+    const ps16 = svc.identity.ps16 || '';
+    const hasMismatch = shortLabelMismatch(ps8, ps16);
+    const ps8Title = hasMismatch
+      ? `Short label "${ps8}" is not subset of label "${ps16}"`
+      : '';
 
     tr.innerHTML = `
       <td>${badge(status)}</td>
       <td>
-        <div class="ps">${esc(svc.identity.ps8)}</div>
-        <div class="muted">${esc(svc.identity.ps16 || '')}</div>
+        <div class="ps"${ps8Title ? ` title="${esc(ps8Title)}"` : ''}>${esc(ps8)}</div>
+        <div class="muted">${esc(ps16)}</div>
       </td>
       <td>${svc.dab.bitrateKbps} kbps</td>
       <td>${svc.cu ?? ''}</td>
       <td>${esc(String(svc.dab.protectionLevel ?? 3))}</td>
+      <td>${esc(svc.audio?.codec || 'HE-AAC v1')}</td>
+      <td>${esc(String(svc.audio?.channels ?? 2))}</td>
+      <td>${esc(String((svc.audio?.sampleRateHz ?? 48000) / 1000))} kHz</td>
       <td>${svc.network.ediOutputTcp.port}</td>
-      <td class="muted">${esc(svc.input.uri || '')}</td>
-      <td class="muted">${esc(svc.input.backupUri || '')}</td>
+      <td class="muted"><span class="badge">${streamDot(activeIsMain, Boolean(svc.input?.uri))}</span> ${esc(svc.input.uri || '')}</td>
+      <td class="muted"><span class="badge">${streamDot(activeIsBackup, Boolean(backupUri))}</span> ${esc(backupUri)}</td>
+      <td class="muted">${esc(dlsPreview)}</td>
+      <td class="muted">${esc(slsPreview)}</td>
       <td class="row-actions">
         <button class="btn btn-mini" data-act="edit" data-id="${svc.id}">Edit</button>
         <button class="btn btn-mini" data-act="del" data-id="${svc.id}">Del</button>
@@ -117,7 +206,7 @@ function openDialogFor(service) {
   const locked = STATE.muxRunning;
 
   $('#dlgTitle').textContent = editingId ? `Edit: ${service?.identity?.ps8}` : 'Add service';
-  $('#dlgLockHint').textContent = locked ? 'ON AIR: identité/bitrate/protection/port verrouillés (comme DabCast)' : '';
+  $('#dlgLockHint').textContent = locked ? 'ON AIR: identité/bitrate/protection verrouillés (comme DabCast)' : '';
 
   // --- General tab ---
   $('#f_pi').value = service?.identity?.pi || '';
@@ -129,17 +218,17 @@ function openDialogFor(service) {
 
   fillBitrates($('#f_bitrate'), STATE.allowedBitratesKbps || [], service?.dab?.bitrateKbps ?? 96);
   $('#f_prot').value = String(service?.dab?.protectionLevel ?? 3);
-  $('#f_port').value = service?.network?.ediOutputTcp?.port ?? '';
 
   $('#f_sr').value = String(service?.audio?.sampleRateHz ?? 48000);
   $('#f_ch').value = String(service?.audio?.channels ?? 2);
-  $('#f_cu').value = String(service?.cu ?? '');
+  $('#f_cu').value = String(service?.cu ?? estimateCu($('#f_bitrate').value, $('#f_prot').value));
 
   $('#f_zbuf').value = service?.input?.zmqBuffer ?? 96;
   $('#f_zpre').value = service?.input?.zmqPrebuffering ?? 48;
 
   $('#f_encbuf').value = service?.input?.encoderBufferMs ?? 200;
   $('#f_gain').value = service?.audio?.gainDb ?? 0;
+  $('#f_codec').value = service?.audio?.codec || 'HE-AAC v1 (SBR)';
 
   // --- Audio tab ---
   $('#f_src').value = (service?.input?.mode || 'VLC').toUpperCase().includes('GST') ? 'GSTREAMER' : 'VLC';
@@ -148,6 +237,7 @@ function openDialogFor(service) {
 
   $('#f_wd').value = service?.watchdog?.enabled ? '1' : '0';
   $('#f_thresh').value = service?.watchdog?.silenceThresholdSec ?? 10;
+  $('#f_warn').value = service?.watchdog?.warningThresholdSec ?? Math.max(1, Math.floor((service?.watchdog?.silenceThresholdSec ?? 10) / 2));
   $('#f_return').value = service?.watchdog?.returnToMainAfterSec ?? 60;
   $('#f_switch').value = service?.watchdog?.switchToBackupOnSilence ? '1' : '0';
 
@@ -159,8 +249,12 @@ function openDialogFor(service) {
   $('#f_meta_title').value = service?.metadata?.titleKey || 'title';
   $('#f_meta_sls').value = service?.metadata?.slsKey || 'cover';
   $('#f_default_dls').value = service?.metadata?.defaultDls || '';
+  $('#f_sls_url').value = service?.metadata?.slsUrl || '';
   $('#f_sls_back').value = service?.metadata?.slsBackColor || '';
   $('#f_sls_font').value = service?.metadata?.slsFontColor || '';
+  $('#f_dls_allowed').value = service?.metadata?.defaultDlsAllowed ? '1' : '0';
+  $('#f_sls_allowed').value = service?.metadata?.defaultSlsAllowed ? '1' : '0';
+  $('#f_dls_included').value = service?.metadata?.dlsIncluded ? '1' : '0';
 
   // SLS preview (logo)
   const img = $('#slsImg');
@@ -185,7 +279,7 @@ function openDialogFor(service) {
 
   // lock fields
   // lock fields (identity + dab params like DabCast)
-  ['f_pi','f_ps8','f_ps16','f_lang','f_pty','f_bitrate','f_prot','f_port','f_sr','f_ch','f_zbuf','f_zpre'].forEach((id) => {
+  ['f_pi','f_ps8','f_ps16','f_lang','f_pty','f_bitrate','f_prot','f_sr','f_ch','f_zbuf','f_zpre','f_codec'].forEach((id) => {
     const el = document.getElementById(id);
     if (el) el.disabled = locked;
   });
@@ -209,8 +303,17 @@ function setActiveTab(tab) {
 }
 
 async function refresh() {
-  STATE = await api('/api/state');
-  render();
+  try {
+    STATE = await api('/api/state');
+    render();
+  } catch (err) {
+    const capEl = $('#capHint');
+    if (capEl) {
+      capEl.textContent = `Erreur API: ${err.message || String(err)}`;
+      capEl.classList.remove('cap-ok','cap-warn','cap-bad');
+      capEl.classList.add('cap-bad');
+    }
+  }
 }
 
 async function start() {
@@ -225,8 +328,73 @@ async function stop() {
 
 async function showLogs() {
   const text = await api('/api/logs');
-  $('#logsPre').textContent = text;
+  LOGS_TEXT = String(text || '');
+  renderLogs();
   dlgLogs.showModal();
+}
+
+async function exportAllConfig() {
+  const payload = await api('/api/export/full');
+  const name = payload?.preset?.name ? payload.preset.name.replace(/\s+/g, '_') : 'dabcast';
+  downloadJson(`dabcast_config_${name}.json`, payload);
+}
+
+async function importAllConfig(file) {
+  const payload = await readJsonFile(file);
+  await api('/api/import/full', { method: 'POST', body: JSON.stringify(payload) });
+  await refresh();
+}
+
+async function exportService(id) {
+  const payload = await api(`/api/export/service/${encodeURIComponent(id)}`);
+  const name = payload?.service?.identity?.ps8 || id;
+  downloadJson(`dabcast_service_${name}.json`, payload);
+}
+
+async function importService(file) {
+  const payload = await readJsonFile(file);
+  await api('/api/import/service', { method: 'POST', body: JSON.stringify(payload) });
+  await refresh();
+}
+
+function logLineScope(line) {
+  const match = line.match(/^\[[^\]]+\]\s+\[([^\]]+)\]\s/);
+  return match ? match[1] : '';
+}
+
+function filterLogsByTab(tab) {
+  if (!LOGS_TEXT) return '';
+  if (tab === 'all') return LOGS_TEXT;
+
+  const lines = LOGS_TEXT.split('\n');
+  if (tab === 'dabmux') {
+    return lines.filter((line) => {
+      const scope = logLineScope(line);
+      return scope === 'mux' || scope.startsWith('mux:odr-dabmux');
+    }).join('\n');
+  }
+
+  if (tab === 'audio') {
+    return lines.filter((line) => {
+      const scope = logLineScope(line);
+      return scope.includes(':audioenc') || scope.includes(':padenc');
+    }).join('\n');
+  }
+
+  if (tab === 'proc') {
+    return lines.filter((line) => (
+      line.includes('spawn:') || line.includes('stop:') || line.includes('exit:')
+    )).join('\n');
+  }
+
+  return LOGS_TEXT;
+}
+
+function renderLogs() {
+  document.querySelectorAll('.logs-tabs .tab').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.logtab === activeLogTab);
+  });
+  $('#logsPre').textContent = filterLogsByTab(activeLogTab);
 }
 
 function openMuxDialog() {
@@ -286,6 +454,25 @@ $('#btnLogs').addEventListener('click', showLogs);
 $('#btnMux').addEventListener('click', openMuxDialog);
 $('#btnAdd').addEventListener('click', () => openDialogFor(null));
 
+document.querySelectorAll('.logs-tabs .tab').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    activeLogTab = btn.dataset.logtab || 'all';
+    renderLogs();
+  });
+});
+
+['f_bitrate', 'f_prot'].forEach((id) => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('change', updateCuPreview);
+});
+
+document.querySelectorAll('[data-action="svc-cancel"]').forEach((btn) => {
+  btn.addEventListener('click', () => dlg.close());
+});
+document.querySelectorAll('[data-action="mux-cancel"]').forEach((btn) => {
+  btn.addEventListener('click', () => dlgMux.close());
+});
+
 // service tabs + wizard buttons
 document.querySelectorAll('#dlgService .tab').forEach((b) => {
   b.addEventListener('click', () => setActiveTab(b.dataset.tab));
@@ -344,6 +531,57 @@ async function clearLogo() {
 $('#btnUploadLogo').addEventListener('click', () => uploadLogo().catch((e) => alert(e.message || String(e))));
 $('#btnClearLogo').addEventListener('click', () => clearLogo().catch((e) => alert(e.message || String(e))));
 
+async function testDlsUrl() {
+  const statusEl = $('#dlsTestStatus');
+  if (statusEl) statusEl.textContent = 'Test...';
+  const url = $('#f_meta_url').value.trim();
+  if (!url) {
+    if (statusEl) statusEl.textContent = 'URL manquante';
+    return;
+  }
+  try {
+    const res = await api('/api/metadata/test/dls', {
+      method: 'POST',
+      body: JSON.stringify({ url })
+    });
+    if (statusEl) statusEl.textContent = res?.ok ? 'OK' : 'Échec';
+    if (res?.text) alert(res.text);
+  } catch (err) {
+    if (statusEl) statusEl.textContent = 'Erreur';
+    alert(err.message || String(err));
+  }
+}
+
+async function testSlsUrl() {
+  const statusEl = $('#slsTestStatus');
+  if (statusEl) statusEl.textContent = 'Test...';
+  const url = $('#f_sls_url').value.trim();
+  if (!url) {
+    if (statusEl) statusEl.textContent = 'URL manquante';
+    return;
+  }
+  try {
+    const res = await api('/api/metadata/test/sls', {
+      method: 'POST',
+      body: JSON.stringify({ url })
+    });
+    if (statusEl) statusEl.textContent = res?.ok ? 'OK' : 'Échec';
+    if (res?.dataUrl) {
+      const img = $('#slsImg');
+      if (img) {
+        img.src = res.dataUrl;
+        img.style.display = '';
+      }
+    }
+  } catch (err) {
+    if (statusEl) statusEl.textContent = 'Erreur';
+    alert(err.message || String(err));
+  }
+}
+
+$('#btnTestDls').addEventListener('click', () => testDlsUrl().catch((e) => alert(e.message || String(e))));
+$('#btnTestSls').addEventListener('click', () => testSlsUrl().catch((e) => alert(e.message || String(e))));
+
 svcTableBody.addEventListener('click', async (e) => {
   const btn = e.target.closest('button');
   if (!btn) return;
@@ -363,6 +601,18 @@ svcTableBody.addEventListener('click', async (e) => {
 
 $('#svcForm').addEventListener('submit', async (e) => {
   e.preventDefault();
+
+  const missing = [];
+  if (!$('#f_ps8').value.trim()) missing.push('PS8');
+  if (!$('#f_pi').value.trim()) missing.push('PI');
+  if (!$('#f_lang').value.trim()) missing.push('Language');
+  const piValue = $('#f_pi').value.trim();
+  if (piValue && !/^[0-9a-fA-F]{4}$/.test(piValue)) {
+    return alert('PI invalide (4 hexadécimaux requis).');
+  }
+  if (missing.length) {
+    return alert(`Champs obligatoires: ${missing.join(', ')}`);
+  }
 
   const payload = {
     identity: {
@@ -388,16 +638,13 @@ $('#svcForm').addEventListener('submit', async (e) => {
     audio: {
       gainDb: Number($('#f_gain').value || 0),
       sampleRateHz: Number($('#f_sr').value || 48000),
-      channels: Number($('#f_ch').value || 2)
-    },
-    network: {
-      ediOutputTcp: {
-        port: Number($('#f_port').value || 0)
-      }
+      channels: Number($('#f_ch').value || 2),
+      codec: $('#f_codec').value
     },
     watchdog: {
       enabled: $('#f_wd').value === '1',
       silenceThresholdSec: Number($('#f_thresh').value || 10),
+      warningThresholdSec: Number($('#f_warn').value || 0),
       switchToBackupOnSilence: $('#f_switch').value === '1',
       returnToMainAfterSec: Number($('#f_return').value || 60)
     },
@@ -409,8 +656,12 @@ $('#svcForm').addEventListener('submit', async (e) => {
       titleKey: $('#f_meta_title').value.trim() || null,
       slsKey: $('#f_meta_sls').value.trim() || null,
       defaultDls: $('#f_default_dls').value.trim() || null,
+      slsUrl: $('#f_sls_url').value.trim() || null,
       slsBackColor: $('#f_sls_back').value.trim() || null,
-      slsFontColor: $('#f_sls_font').value.trim() || null
+      slsFontColor: $('#f_sls_font').value.trim() || null,
+      defaultDlsAllowed: $('#f_dls_allowed').value === '1',
+      defaultSlsAllowed: $('#f_sls_allowed').value === '1',
+      dlsIncluded: $('#f_dls_included').value === '1'
     }
   };
 
@@ -424,6 +675,56 @@ $('#svcForm').addEventListener('submit', async (e) => {
     await refresh();
   } catch (err) {
     alert(err.message || String(err));
+  }
+});
+
+$('#btnExportAll')?.addEventListener('click', async () => {
+  try {
+    await exportAllConfig();
+  } catch (err) {
+    alert(err.message || String(err));
+  }
+});
+
+$('#btnImportAll')?.addEventListener('click', () => {
+  fileImportAll?.click();
+});
+
+$('#btnExportService')?.addEventListener('click', async () => {
+  try {
+    const id = editingId || prompt('ID du service à exporter ?');
+    if (!id) return;
+    await exportService(id);
+  } catch (err) {
+    alert(err.message || String(err));
+  }
+});
+
+$('#btnImportService')?.addEventListener('click', () => {
+  fileImportService?.click();
+});
+
+fileImportAll?.addEventListener('change', async (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  try {
+    await importAllConfig(file);
+  } catch (err) {
+    alert(err.message || String(err));
+  } finally {
+    e.target.value = '';
+  }
+});
+
+fileImportService?.addEventListener('change', async (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  try {
+    await importService(file);
+  } catch (err) {
+    alert(err.message || String(err));
+  } finally {
+    e.target.value = '';
   }
 });
 
