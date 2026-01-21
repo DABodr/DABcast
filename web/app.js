@@ -96,6 +96,17 @@ function streamDot(isActive, hasUri = true) {
   return `<span class="${cls}" aria-hidden="true"></span>`;
 }
 
+function normalizeLabel(label) {
+  return String(label || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+function shortLabelMismatch(ps8, ps16) {
+  const shortLabel = normalizeLabel(ps8);
+  const longLabel = normalizeLabel(ps16);
+  if (!shortLabel || !longLabel) return false;
+  return !longLabel.includes(shortLabel);
+}
+
 function render() {
   if (!STATE) return;
 
@@ -145,11 +156,18 @@ function render() {
     const activeIsMain = Boolean(activeUri && svc.input?.uri && activeUri === svc.input.uri);
     const activeIsBackup = Boolean(activeUri && backupUri && activeUri === backupUri);
 
+    const ps8 = svc.identity.ps8 || '';
+    const ps16 = svc.identity.ps16 || '';
+    const hasMismatch = shortLabelMismatch(ps8, ps16);
+    const ps8Title = hasMismatch
+      ? `Short label "${ps8}" is not subset of label "${ps16}"`
+      : '';
+
     tr.innerHTML = `
       <td>${badge(status)}</td>
       <td>
-        <div class="ps">${esc(svc.identity.ps8)}</div>
-        <div class="muted">${esc(svc.identity.ps16 || '')}</div>
+        <div class="ps"${ps8Title ? ` title="${esc(ps8Title)}"` : ''}>${esc(ps8)}</div>
+        <div class="muted">${esc(ps16)}</div>
       </td>
       <td>${streamDot(activeIsMain)}</td>
       <td>${streamDot(activeIsBackup, Boolean(backupUri))}</td>
