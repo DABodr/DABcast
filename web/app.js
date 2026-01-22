@@ -661,12 +661,12 @@ svcTableBody.addEventListener('click', async (e) => {
 $('#svcForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   showServiceError('');
-  const missing = [];
-  if (!$('#f_ps8').value.trim()) missing.push('PS8');
-  if (!$('#f_pi').value.trim()) missing.push('PI');
-  if (!$('#f_lang').value.trim()) missing.push('Language');
-  if (missing.length) {
-    showServiceError(`Champs obligatoires: ${missing.join(', ')}`);
+  const requiredFields = [];
+  if (!$('#f_ps8').value.trim()) requiredFields.push('PS8');
+  if (!$('#f_pi').value.trim()) requiredFields.push('PI');
+  if (!$('#f_lang').value.trim()) requiredFields.push('Language');
+  if (requiredFields.length) {
+    showServiceError(`Champs obligatoires: ${requiredFields.join(', ')}`);
     return;
   }
 
@@ -674,18 +674,6 @@ $('#svcForm').addEventListener('submit', async (e) => {
   if (errors.length) {
     showServiceError(errors.join(' '));
     return;
-  }
-
-  const missing = [];
-  if (!$('#f_ps8').value.trim()) missing.push('PS8');
-  if (!$('#f_pi').value.trim()) missing.push('PI');
-  if (!$('#f_lang').value.trim()) missing.push('Language');
-  const piValue = $('#f_pi').value.trim();
-  if (piValue && !/^[0-9a-fA-F]{4}$/.test(piValue)) {
-    return alert('PI invalide (4 hexadécimaux requis).');
-  }
-  if (missing.length) {
-    return alert(`Champs obligatoires: ${missing.join(', ')}`);
   }
 
   const payload = {
