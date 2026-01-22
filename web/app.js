@@ -96,6 +96,45 @@ function streamDot(isActive, hasUri = true) {
   return `<span class="${cls}" aria-hidden="true"></span>`;
 }
 
+function normalizePiValue(pi) {
+  const trimmed = String(pi || '').trim();
+  const normalized = trimmed.startsWith('0x') || trimmed.startsWith('0X')
+    ? trimmed.slice(2)
+    : trimmed;
+  if (!/^[0-9A-Fa-f]{4}$/.test(normalized)) return null;
+  return `0x${normalized.toUpperCase()}`;
+}
+
+function showServiceError(message) {
+  const el = $('#svcError');
+  if (!el) return;
+  if (!message) {
+    el.textContent = '';
+    el.classList.add('hidden');
+    return;
+  }
+  el.textContent = message;
+  el.classList.remove('hidden');
+}
+
+function validateServiceForm() {
+  const errors = [];
+  const piInput = $('#f_pi').value.trim();
+  const normalizedPi = normalizePiValue(piInput);
+  if (!normalizedPi) errors.push('PI invalide (ex: F408 ou 0xF408).');
+
+  const ps8 = $('#f_ps8').value.trim();
+  const ps16 = $('#f_ps16').value.trim();
+  if (ps8.length > 8) errors.push('PS8 doit contenir au maximum 8 caractères.');
+  if (ps16.length > 16) errors.push('PS16 doit contenir au maximum 16 caractères.');
+
+  const bitrate = Number($('#f_bitrate').value);
+  const allowed = STATE.allowedBitratesKbps || [];
+  if (!allowed.includes(bitrate)) errors.push('Bitrate non autorisé.');
+
+  return { errors, normalizedPi };
+}
+
 function normalizeLabel(label) {
   return String(label || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 }
@@ -132,6 +171,12 @@ function render() {
   }
 
   const on = STATE.muxRunning;
+  const startBtn = $('#btnStart');
+  if (startBtn) {
+    const exceeded = cap.totalCu > cap.maxCu;
+    startBtn.disabled = on || exceeded;
+    startBtn.title = exceeded ? 'Capacité CU dépassée' : '';
+  }
   const onAir = $('#onAir');
   onAir.textContent = on ? 'ON AIR' : 'OFF AIR';
   onAir.classList.toggle('on', on);
@@ -211,6 +256,7 @@ function fillBitrates(selectEl, allowed, value) {
 function openDialogFor(service) {
   editingId = service?.id || null;
   const locked = STATE.muxRunning;
+  showServiceError('');
 
   $('#dlgTitle').textContent = editingId ? `Edit: ${service?.identity?.ps8}` : 'Add service';
   $('#dlgLockHint').textContent = locked ? 'ON AIR: identité/bitrate/protection verrouillés (comme DabCast)' : '';
@@ -391,6 +437,12 @@ function filterLogsByTab(tab) {
   if (tab === 'proc') {
     return lines.filter((line) => (
       line.includes('spawn:') || line.includes('stop:') || line.includes('exit:')
+    )).join('\n');
+  }
+
+  if (tab === 'errors') {
+    return lines.filter((line) => (
+      line.includes('ERROR') || line.includes('WARN') || line.includes('exit: code=')
     )).join('\n');
   }
 
@@ -608,6 +660,21 @@ svcTableBody.addEventListener('click', async (e) => {
 
 $('#svcForm').addEventListener('submit', async (e) => {
   e.preventDefault();
+  showServiceError('');
+  const missing = [];
+  if (!$('#f_ps8').value.trim()) missing.push('PS8');
+  if (!$('#f_pi').value.trim()) missing.push('PI');
+  if (!$('#f_lang').value.trim()) missing.push('Language');
+  if (missing.length) {
+    showServiceError(`Champs obligatoires: ${missing.join(', ')}`);
+    return;
+  }
+
+  const { errors, normalizedPi } = validateServiceForm();
+  if (errors.length) {
+    showServiceError(errors.join(' '));
+    return;
+  }
 
   const missing = [];
   if (!$('#f_ps8').value.trim()) missing.push('PS8');
@@ -623,7 +690,7 @@ $('#svcForm').addEventListener('submit', async (e) => {
 
   const payload = {
     identity: {
-      pi: $('#f_pi').value.trim() || undefined,
+      pi: normalizedPi || undefined,
       ps8: $('#f_ps8').value.trim(),
       ps16: $('#f_ps16').value.trim() || null,
       pty: Number($('#f_pty').value || 10),

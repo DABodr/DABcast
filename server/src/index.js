@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import { DEFAULT_SETTINGS } from './defaults.js';
 import { ensureDir, readJson, writeJson } from './fsutil.js';
 import { FileLogger } from './logger.js';
-import { ProcessManager } from './processManager.js';
+import { OdrProcessManager } from './odr/processManager.js';
 import { AppState } from './appState.js';
 
 const app = express();
@@ -26,7 +26,7 @@ const settings = readJson(settingsPath, DEFAULT_SETTINGS) || DEFAULT_SETTINGS;
 writeJson(settingsPath, settings);
 
 const logger = new FileLogger(path.resolve(dataDir, 'logs', 'dabweb.log'));
-const pm = new ProcessManager({ logger, odrBinDir: settings.odrBinDir });
+const pm = new OdrProcessManager({ logger, odrBinDir: settings.odrBinDir, runtimeDir: path.resolve(dataDir, 'runtime') });
 
 // ensure demo preset exists (shipped)
 const shippedDemo = path.resolve(rootDir, 'data', 'presets', 'demo.json');

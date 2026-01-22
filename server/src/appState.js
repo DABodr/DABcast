@@ -2,7 +2,9 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { nanoid } from 'nanoid';
 import { ensureDir, readJson, writeJson, safeExists } from './fsutil.js';
-import { generateMuxConfig } from './muxGenerator.js';
+import { buildMuxConfig } from './odr/muxBuilder.js';
+import { buildAudioEncCommand, buildDabMuxCommand, buildPadEncCommand } from './odr/commandBuilder.js';
+import { validateService } from './odr/validate.js';
 import { ALLOWED_BITRATES_KBPS, DEFAULT_DEMO_PRESET_ID } from './defaults.js';
 import { estimateCU, sumCU } from './cu.js';
 
@@ -146,16 +148,19 @@ export class AppState {
     if (!next.id) next.id = nanoid(8);
     next.ui = { ...(next.ui || {}), order: next.ui?.order ?? (this.preset.services.length + 1) };
 
+    const { errors, normalized } = validateService(next, ALLOWED_BITRATES_KBPS);
+    if (errors.length) throw new Error(errors.join(' '));
+
     const idx = this.preset.services.findIndex((s) => s.id === next.id);
     if (idx >= 0) {
-      this.preset.services[idx] = next;
+      this.preset.services[idx] = normalized;
     } else {
-      this.preset.services.push(next);
+      this.preset.services.push(normalized);
     }
 
-    this.serviceRuntime.set(next.id, {
+    this.serviceRuntime.set(normalized.id, {
       status: 'STOPPED',
-      activeUri: next.input?.uri || null,
+      activeUri: normalized.input?.uri || null,
       lastOkMainMs: 0,
       lastOkBackupMs: 0,
       lastSwitchMs: 0,
@@ -166,7 +171,7 @@ export class AppState {
       warningSinceMs: 0
     });
     this._savePreset();
-    return next;
+    return normalized;
   }
 
   setService(id, patch) {
@@ -246,9 +251,12 @@ export class AppState {
 
     }
 
-    this.preset.services[idx] = next;
+    const { errors, normalized } = validateService(next, ALLOWED_BITRATES_KBPS);
+    if (errors.length) throw new Error(errors.join(' '));
+
+    this.preset.services[idx] = normalized;
     this._savePreset();
-    return next;
+    return normalized;
   }
 
   addService(svc) {
@@ -329,10 +337,13 @@ export class AppState {
       }
     };
 
-    this.preset.services.push(newSvc);
-    this.serviceRuntime.set(newSvc.id, {
+    const { errors, normalized } = validateService(newSvc, ALLOWED_BITRATES_KBPS);
+    if (errors.length) throw new Error(errors.join(' '));
+
+    this.preset.services.push(normalized);
+    this.serviceRuntime.set(normalized.id, {
       status: 'STOPPED',
-      activeUri: newSvc.input.uri,
+      activeUri: normalized.input.uri,
       lastOkMainMs: 0,
       lastOkBackupMs: 0,
       lastSwitchMs: 0,
@@ -343,7 +354,7 @@ export class AppState {
       warningSinceMs: 0
     });
     this._savePreset();
-    return newSvc;
+    return normalized;
   }
 
   deleteService(id) {
@@ -377,7 +388,7 @@ export class AppState {
   }
 
   _getMtaPath(svc) {
-    const pi = (svc.identity?.pi || svc.id || 'service').toUpperCase();
+    const pi = (svc.identity?.pi || svc.id || 'service').toUpperCase().replace(/^0X/, '');
     return path.resolve(this.runtimeDir, `${pi}.mta`);
   }
 
@@ -586,7 +597,9 @@ export class AppState {
   }
 
   async startMux() {
-    if (this.muxRunning) return;
+    if (this.muxRunning) {
+      throw new Error('Mux déjà en cours (ON AIR).');
+    }
 
     // Basic capacity check (heuristic CU estimator).
     // Prevent starting clearly invalid mux configs.
@@ -596,7 +609,7 @@ export class AppState {
     }
 
     // generate mux file
-    const muxText = generateMuxConfig({ settings: this.settings, preset: this.preset });
+    const muxText = buildMuxConfig({ settings: this.settings, preset: this.preset });
     const muxPath = path.resolve(this.runtimeDir, 'current.mux');
     fs.writeFileSync(muxPath, muxText, 'utf8');
     this.logger.line('mux', `generated mux: ${muxPath}`);
@@ -607,7 +620,8 @@ export class AppState {
     }
 
     // start dabmux
-    this.pm.spawn('mux:odr-dabmux', 'odr-dabmux', ['-e', muxPath]);
+    const dabmuxCmd = buildDabMuxCommand(muxPath);
+    this.pm.spawn('mux:odr-dabmux', dabmuxCmd.bin, dabmuxCmd.args);
 
     this.muxRunning = true;
     this._startWatchdog();
@@ -645,12 +659,8 @@ export class AppState {
     }
 
     // padenc
-    this.pm.spawn(
-      `svc:${svc.id}:padenc`,
-      'odr-padenc',
-      ['-o', svc.pad.fifoName, '-t', svc.pad.dlsFile, '-d', svc.pad.slideDir],
-      { cwd: motDirAbs }
-    );
+    const padCmd = buildPadEncCommand(svc);
+    this.pm.spawn(`svc:${svc.id}:padenc`, padCmd.bin, padCmd.args, { cwd: motDirAbs });
 
     // audioenc (uses the fifo name in cwd)
     const rt = this.serviceRuntime.get(svc.id);
@@ -658,38 +668,12 @@ export class AppState {
 
     const activeUri = rt?.activeUri || svc.input.uri;
     const codecArgs = this._getCodecArgs(svc.audio?.codec);
-    const isHttpStream = /^https?:\/\//i.test(activeUri || '');
-    const sourceFlag = isHttpStream || svc.input?.mode?.toUpperCase().includes('GST') ? '-G' : '-v';
-    const args = [
-      sourceFlag,
+    const audioCmd = buildAudioEncCommand({
+      svc: { ...svc, audio: { ...svc.audio, codecArgs } },
       activeUri,
-      '-D',
-      '-C',
-      String(svc.input.encoderBufferMs ?? 200),
-      '-L',
-      '--audio-resampler=samplerate',
-      ...codecArgs,
-      '-c',
-      String(svc.audio.channels ?? 2),
-      '-p',
-      '64',
-      '-b',
-      String(svc.dab.bitrateKbps),
-      '-r',
-      String(svc.audio.sampleRateHz ?? 48000),
-      '-g',
-      String(svc.audio.gainDb ?? 0),
-      '-s',
-      '60',
-      '-o',
-      `tcp://localhost:${svc.network.ediOutputTcp.port}`,
-      '-w',
-      mtaPath,
-      '-P',
-      svc.pad.fifoName
-    ];
-
-    this.pm.spawn(`svc:${svc.id}:audioenc`, 'odr-audioenc', args, { cwd: motDirAbs });
+      mtaPath
+    });
+    this.pm.spawn(`svc:${svc.id}:audioenc`, audioCmd.bin, audioCmd.args, { cwd: motDirAbs });
 
     if (rt) {
       rt.status = 'RUNNING';

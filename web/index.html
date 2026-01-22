@@ -82,6 +82,7 @@
         </div>
         <button class="icon" value="cancel" aria-label="Fermer">✕</button>
       </div>
+      <div class="alert hidden" id="svcError"></div>
 
       <div class="tabs" role="tablist" aria-label="Service tabs">
         <button type="button" class="tab active" data-tab="general">General</button>
@@ -360,6 +361,7 @@
         <button type="button" class="tab" data-logtab="dabmux">odr-dabmux</button>
         <button type="button" class="tab" data-logtab="audio">odr-audioenc / odr-padenc</button>
         <button type="button" class="tab" data-logtab="proc">Processus lancés</button>
+        <button type="button" class="tab" data-logtab="errors">Erreurs</button>
       </div>
       <pre id="logsPre" class="logs"></pre>
       <div class="modal-actions">
