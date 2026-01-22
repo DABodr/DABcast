@@ -54,6 +54,11 @@ function badge(status) {
   return `<span class="${cls}">${s}</span>`;
 }
 
+function streamDot(active, fallback = false) {
+  const cls = active ? 'ok' : (fallback ? 'warn' : '');
+  return `<span class="dot ${cls}"></span>`;
+}
+
 function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
 }
@@ -209,6 +214,8 @@ function render() {
         <div class="ps"${ps8Title ? ` title="${esc(ps8Title)}"` : ''}>${esc(ps8)}</div>
         <div class="muted">${esc(ps16)}</div>
       </td>
+      <td>${streamDot(activeIsMain)}</td>
+      <td>${streamDot(activeIsBackup, Boolean(backupUri))}</td>
       <td>${svc.dab.bitrateKbps} kbps</td>
       <td>${svc.cu ?? ''}</td>
       <td>${esc(String(svc.dab.protectionLevel ?? 3))}</td>
@@ -667,6 +674,18 @@ $('#svcForm').addEventListener('submit', async (e) => {
   if (errors.length) {
     showServiceError(errors.join(' '));
     return;
+  }
+
+  const missing = [];
+  if (!$('#f_ps8').value.trim()) missing.push('PS8');
+  if (!$('#f_pi').value.trim()) missing.push('PI');
+  if (!$('#f_lang').value.trim()) missing.push('Language');
+  const piValue = $('#f_pi').value.trim();
+  if (piValue && !/^[0-9a-fA-F]{4}$/.test(piValue)) {
+    return alert('PI invalide (4 hexadécimaux requis).');
+  }
+  if (missing.length) {
+    return alert(`Champs obligatoires: ${missing.join(', ')}`);
   }
 
   const payload = {
