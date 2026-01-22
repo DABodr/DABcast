@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import { DEFAULT_SETTINGS } from './defaults.js';
 import { ensureDir, readJson, writeJson } from './fsutil.js';
 import { FileLogger } from './logger.js';
-import { ProcessManager } from './processManager.js';
+import { OdrProcessManager } from './odr/processManager.js';
 import { AppState } from './appState.js';
 
 const app = express();
@@ -26,7 +26,7 @@ const settings = readJson(settingsPath, DEFAULT_SETTINGS) || DEFAULT_SETTINGS;
 writeJson(settingsPath, settings);
 
 const logger = new FileLogger(path.resolve(dataDir, 'logs', 'dabweb.log'));
-const pm = new ProcessManager({ logger, odrBinDir: settings.odrBinDir });
+const pm = new OdrProcessManager({ logger, odrBinDir: settings.odrBinDir, runtimeDir: path.resolve(dataDir, 'runtime') });
 
 // ensure demo preset exists (shipped)
 const shippedDemo = path.resolve(rootDir, 'data', 'presets', 'demo.json');
@@ -71,6 +71,51 @@ app.patch('/api/settings', (req, res) => {
 
     writeJson(settingsPath, settings);
     res.json({ ok: true, settings });
+  } catch (e) {
+    res.status(400).json({ error: String(e.message || e) });
+  }
+});
+
+app.get('/api/export/full', (req, res) => {
+  res.json({ settings, preset: state.preset });
+});
+
+app.post('/api/import/full', (req, res) => {
+  try {
+    const payload = req.body || {};
+    if (payload.settings) {
+      settings.ensemble = { ...settings.ensemble, ...payload.settings.ensemble };
+      settings.dabmux = { ...settings.dabmux, ...payload.settings.dabmux };
+      if (payload.settings.dabmux?.easyDabOutput) {
+        settings.dabmux.easyDabOutput = { ...settings.dabmux.easyDabOutput, ...payload.settings.dabmux.easyDabOutput };
+      }
+      if (payload.settings.odrBinDir !== undefined) {
+        settings.odrBinDir = payload.settings.odrBinDir;
+        pm.odrBinDir = settings.odrBinDir;
+      }
+      writeJson(settingsPath, settings);
+    }
+    if (payload.preset) {
+      state.setPreset(payload.preset);
+    }
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(400).json({ error: String(e.message || e) });
+  }
+});
+
+app.get('/api/export/service/:id', (req, res) => {
+  const svc = state.preset.services.find((s) => s.id === req.params.id);
+  if (!svc) return res.status(404).json({ error: 'Unknown service' });
+  res.json({ service: svc });
+});
+
+app.post('/api/import/service', (req, res) => {
+  try {
+    const payload = req.body || {};
+    if (!payload.service) throw new Error('Missing service');
+    const svc = state.upsertService(payload.service);
+    res.json({ ok: true, service: svc });
   } catch (e) {
     res.status(400).json({ error: String(e.message || e) });
   }
@@ -125,6 +170,26 @@ app.get('/api/logs', (req, res) => {
   const logPath = path.resolve(dataDir, 'logs', 'dabweb.log');
   const content = fs.existsSync(logPath) ? fs.readFileSync(logPath, 'utf8') : '';
   res.type('text/plain').send(content);
+});
+
+app.post('/api/metadata/test/dls', async (req, res) => {
+  try {
+    const url = String((req.body || {}).url || '');
+    const result = await state.testDlsUrl(url);
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e.message || e) });
+  }
+});
+
+app.post('/api/metadata/test/sls', async (req, res) => {
+  try {
+    const url = String((req.body || {}).url || '');
+    const result = await state.testSlsUrl(url);
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e.message || e) });
+  }
 });
 
 // Serve MOT/SLS demo assets for preview (logo, slideshow directory, etc.)
