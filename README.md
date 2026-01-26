@@ -1,6 +1,5 @@
 # DAB WebUI (Node) - V0.1
 
-Objectif : reprendre l'esprit de DabCast (Gambas) mais en **WebApp Node** facile à installer.
 
 ## Démarrage rapide
 
